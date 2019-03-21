@@ -1,0 +1,293 @@
+#!/bin/bash
+#
+# https://github.com/Aniverse/inexistence
+# Author: Aniverse
+#
+# update=2018.12.21
+# version=1.19
+#
+# --------- Usage ---------
+# wget -qO de https://github.com/Aniverse/inexistence/raw/master/00.Installation/install/install_deluge && bash de -b develop
+# bash <(wget --no-check-certificate -qO- https://github.com/Aniverse/inexistence/raw/master/00.Installation/install/install_deluge) -v 1.3.15
+
+OutputLOG=/etc/inexistence/01.Log/install_deluge.txt    # /dev/null
+SCLocation=/etc/inexistence/01.Log/SourceCodes
+LOCKLocation=/etc/inexistence/01.Log/Lock
+
+# Colors
+black=$(tput setaf 0); red=$(tput setaf 1); green=$(tput setaf 2); yellow=$(tput setaf 3); blue=$(tput setaf 4); magenta=$(tput setaf 5); cyan=$(tput setaf 6); white=$(tput setaf 7);
+on_red=$(tput setab 1); on_green=$(tput setab 2); on_yellow=$(tput setab 3); on_blue=$(tput setab 4); on_magenta=$(tput setab 5); on_cyan=$(tput setab 6); on_white=$(tput setab 7); bold=$(tput bold);
+dim=$(tput dim); underline=$(tput smul); reset_underline=$(tput rmul); standout=$(tput smso); reset_standout=$(tput rmso); normal=$(tput sgr0); alert=${white}${on_red}; title=${standout};
+baihuangse=${white}${on_yellow}; bailanse=${white}${on_blue}; bailvse=${white}${on_green}; baiqingse=${white}${on_cyan}; baihongse=${white}${on_red}; baizise=${white}${on_magenta};
+heibaise=${black}${on_white}; heihuangse=${on_yellow}${black}; jiacu=${normal}${bold}; shanshuo=$(tput blink); wuguangbiao=$(tput civis); guangbiao=$(tput cnorm)
+CW="${bold}${baihongse} ERROR ${jiacu}";ZY="${baihongse}${bold} ATTENTION ${jiacu}";JG="${baihongse}${bold} WARNING ${jiacu}"
+
+# Sustem check
+DISTRO=$( awk -F'[= "]' '/PRETTY_NAME/{print $3}' /etc/os-release )
+CODENAME=$( cat /etc/os-release | grep VERSION= | tr '[A-Z]' '[a-z]' | sed 's/\"\|(\|)\|[0-9.,]\|version\|lts//g' | awk '{print $2}' )
+
+function version_ge(){ test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1" ; }
+
+function _check_status() {
+local LockName=$1
+[[   -f /tmp/$LockName.1.lock ]] && echo -e " ${green}${bold}DONE${normal}"
+[[   -f /tmp/$LockName.2.lock ]] && echo -e " ${red}${bold}FAILED${normal}"
+[[ ! -f /tmp/$LockName.1.lock ]] && [[ ! -f /tmp/$LockName.2.lock ]] && echo -e " ${red}${bold}Unknown State${normal}" ; }
+
+# Don't know why [ && Success=Yes || Success=No ] doesn't work，so use lock file instead
+rm -f /tmp/de.1.lock /tmp/de.2.lock
+
+
+
+
+
+OPTS=$(getopt -n "$0" -o m:v:b: --long "install-mode:,version:,branch:" -- "$@")
+
+eval set -- "$OPTS"
+
+while true; do
+  case "$1" in
+    -m | --install-mode ) mode="$2"     ; shift ; shift ;;
+    -v | --version      ) version="$2"  ; shift ; shift ;;
+    -b | --branch       ) branch="$2"   ; shift ; shift ;;
+     * ) break ;;
+  esac
+done
+
+
+
+
+
+# Check if input version is available
+DeSource="http://download.deluge-torrent.org/source"
+AvailableVersion=$(  wget -qO- $DeSource | grep -o "deluge-[0-9]\{1,2\}\.[0-9]\{1,2\}\.[0-9]\{1,2\}\.tar.gz" | sort -uV | grep -o "[0-9]\{1,2\}\.[0-9]\{1,2\}\.[0-9]\{1,2\}"  )
+[[ ! -z $version ]] && [[ ! $( echo $AvailableVersion | grep $version ) ]] && { echo -e "\n${CW} The version you input is not available!\n" ; exit 1 ; }
+
+[[ -z $mode ]] && [[ ! -z $version ]] && mode=source
+[[ -z $mode ]] && [[ ! -z $branch  ]] && mode=source
+
+# Check if input branch exists
+[[ ! -z $branch ]] && [[ ! $( wget -qO- "https://github.com/deluge-torrent/deluge" | grep data-name | cut -d '"' -f2 | grep -P "$branch\b" ) ]] && { echo -e "\n${CW} No such branch!\n" ; exit 1 ; }
+
+[[ ! -z $version ]] && source_type=release
+[[ ! -z $branch  ]] && source_type=git     && version=$branch
+
+# Check if ssl issue should be fix
+version_ge $version 1.3.11 || DESSL=Yes
+
+# Check if libtorrent below 1.1.2 is supported
+version_ge $version  2.0 && export lt8_support=No || lt8_support=Yes
+[[ $branch == develop ]] && export lt8_support=No || lt8_support=Yes
+lt_ver=$( pkg-config --exists --print-errors "libtorrent-rasterbar >= 3.0.0" 2>&1 | awk '{print $NF}' | grep -oE [0-9.]+ )
+[[ ! -z $lt_ver ]] && version_ge $lt_ver 1.1.3 && lt_ver_newer=Yes || lt_ver_newer=No
+[[ $lt8_support == No ]] && [[ $lt_ver_newer == No ]] && echo -e "\n${CW} libtorrent-rasterbar 1.1.3 and above is required when installing deluge 2.0 and above${normal}\n" && exit 1
+
+# Random Number
+# [[ $mode =~ (source|alt) ]] && RN=$(shuf -i 1-999 -n1)
+
+
+
+
+
+case $mode in
+    apt     ) sleep 0  ;;
+    ppa     ) sleep 0  ;;
+    source  ) sleep 0  ;;
+    alt     ) sleep 0  ;;
+    ""   | *) echo -e "\n${CW} Installation mode must be specified as apt, ppa, source or alt${normal}\n"   ;;
+esac
+
+
+
+
+
+spinner() {
+    local pid=$1
+    local delay=0.25
+    local spinstr='|/-\'
+    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+        local temp=${spinstr#?}
+        printf " [${bold}${yellow}%c${normal}]  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    printf "    \b\b\b\b"
+}
+
+
+
+
+
+# Install build dependencies for deluge 
+function _install_de_dependencies() {
+
+# Install Dependencies without python-libtorrent (libtorrent-rasterbar should have been built before)
+apt-get install -y python python-twisted python-openssl python-setuptools intltool python-xdg python-chardet geoip-database python-notify python-pygame python-glade2 librsvg2-common xdg-utils python-mako python-pip >> $OutputLOG 2>&1 && touch /tmp/ded.1.lock || touch /tmp/ded.2.lock
+
+# This is for deluge 2.0
+pip install --upgrade pip >> $OutputLOG 2>&1
+/usr/local/bin/pip install --upgrade twisted pillow rencode pyopenssl >> $OutputLOG 2>&1
+
+[[ -f /tmp/ded.1.lock ]] && touch $LOCKLocation/deluge.dependencies.lock ; }
+
+
+
+
+
+# Fetch source files
+function _get_source_codes() {
+cd $SCLocation
+if   [[ $source_type == release ]]; then
+    wget $DeSource/deluge-$version.tar.gz         >> $OutputLOG 2>&1
+    tar xf deluge-$version.tar.gz                 >> $OutputLOG 2>&1
+    rm -f deluge-$version.tar.gz                  >> $OutputLOG 2>&1
+    cd deluge-$version                            >> $OutputLOG 2>&1
+elif [[ $source_type ==   git   ]]; then
+    git clone https://github.com/deluge-torrent/deluge deluge-$version  >> $OutputLOG 2>&1
+    cd deluge-$version   >> $OutputLOG 2>&1
+    git checkout $branch >> $OutputLOG 2>&1
+fi ; }
+
+# Fix older deluged ssl issue
+function _de_ssl_fix() {
+sed -i "s/SSL.SSLv3_METHOD/SSL.SSLv23_METHOD/g" deluge/core/rpcserver.py
+sed -i "/        ctx = SSL.Context(SSL.SSLv23_METHOD)/a\        ctx.set_options(SSL.OP_NO_SSLv2 & SSL.OP_NO_SSLv3)" deluge/core/rpcserver.py ; }
+
+# Install deluged to another path which is $SCLocation/deluge-$version-tmp/bin/deluged
+function _de_install_diff() {
+DeTmpPath=$SCLocation/deluge-$version-tmp
+DeTmpPath2=$SCLocation/deluge-$version-tmp/lib/python2.7/site-packages
+mkdir -p $DeTmpPath2
+PYTHONPATH=$DeTmpPath2 python setup.py install --prefix=$DeTmpPath >> $OutputLOG 2>&1 ; }
+
+
+
+
+
+# Install from source code
+function _install_de_source() {
+
+_get_source_codes
+
+[[ $DESSL == Yes ]] && { _de_ssl_fix && _de_install_diff ; version_o=$version ; version=1.3.15 && _get_source_codes ; }
+
+python setup.py build >> $OutputLOG 2>&1
+python setup.py install --install-layout=deb --record /etc/inexistence/01.Log/install_deluge_$version.txt >> $OutputLOG 2>&1 && touch /tmp/de.1.lock || touch /tmp/de.2.lock
+
+[[ $DESSL == Yes ]] && {
+mv -f $SCLocation/deluge-$version_o-tmp/bin/deluged /usr/bin/deluged
+rm -rf deluge-$version ; version=$version_o
+rm -rf $DeTmpPath ; }
+
+rm -rf deluge-$version
+
+[[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.lock
+[[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.source.$version.lock ; }
+
+
+
+
+
+# Install another version of deluge (e.g. 1.3.9 for KeepFRDS)
+# Have bugs to be fixed
+function _install_de_alt() {
+
+_get_source_codes
+
+[[ $DESSL == Yes ]] && _de_ssl_fix
+
+_de_install_diff
+
+mv -f $SCLocation/deluge-$version-tmp/bin/deluged /usr/bin/deluged2 && touch /tmp/de.1.lock || touch /tmp/de.2.lock
+
+rm -rf $DeTmpPath
+
+[[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.alt.lock
+[[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.alt.$version.lock ; }
+
+
+
+
+
+# Install from PPA
+function _install_de_ppa() {
+
+latest_stable=` wget -qO- https://dev.deluge-torrent.org/wiki/ReleaseNotes | grep wiki/ReleaseNotes | grep -Eo "[12]\.[0-9.]+" | sed 's/">/ /' | awk '{print $1}' | head -n1 `
+[[ -z $latest_stable ]] && latest_stable=1.3.15
+
+if   [[ $DISTRO == Debian ]]; then
+
+    echo 'deb http://ppa.launchpad.net/deluge-team/ppa/ubuntu trusty main'        >> /etc/apt/sources.list
+    apt-get update                                                                >> $OutputLOG 2>&1
+    apt-get install -t trusty deluge deluged deluge-web deluge-console deluge-gtk >> $OutputLOG 2>&1 && touch /tmp/de.1.lock || touch /tmp/de.2.lock
+
+elif [[ $DISTRO == Ubuntu ]]; then
+
+    add-apt-repository -y ppa:deluge-team/ppa         >> $OutputLOG 2>&1
+    apt-get update                                    >> $OutputLOG 2>&1
+  # apt-get install python-libtorrent                 >> $OutputLOG 2>&1
+  # apt-get install -y --allow-change-held-packages --allow-downgrades libtorrent-rasterbar8=1.0.11-1~xenial~ppa1.1 python-libtorrent=1.0.11-1~xenial~ppa1.1 >> $OutputLOG 2>&1
+  # apt-mark hold python-libtorrent                   >> $OutputLOG 2>&1
+  # apt-mark hold libtorrent-rasterbar8               >> $OutputLOG 2>&1
+    apt-get install -t trusty deluge deluged deluge-web deluge-console deluge-gtk >> $OutputLOG 2>&1 && touch /tmp/de.1.lock || touch /tmp/de.2.lock
+
+fi
+
+[[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.lock
+[[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.ppa.lock ; }
+
+
+
+
+
+# Install from repository
+function _install_de_apt() {
+
+apt-get install -y deluge deluged deluge-web deluge-console deluge-gtk >> $OutputLOG 2>&1 && touch /tmp/de.1.lock || touch /tmp/de.2.lock
+
+[[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.lock
+[[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.apt.lock ; }
+
+[[ $mode == apt ]] && {
+version=$( apt-cache policy deluge | grep -B1 http | grep -Eo "[012]\.[0-9]+.[0-9]+" | head -n1 )
+[[ -z $version ]] && {
+[[ $CODENAME == bionic  ]] && version=1.3.15 ; [[ $CODENAME == xenial ]] && version=1.3.12 ; [[ $CODENAME == trusty ]] && version=1.3.6
+[[ $CODENAME == stretch ]] && version=1.3.13 ; [[ $CODENAME == jessie ]] && version=1.3.10 ; } ; }
+
+
+
+
+
+mkdir -p $SCLocation $LOCKLocation
+cd       $SCLocation
+echo "\n\n\n$(date "+%Y.%m.%d.%H.%M.%S")   $RN\n\n\n" >> $OutputLOG
+
+case $mode in
+    apt     ) echo -ne "Installing deluge ${bold}${cyan}$version${normal} from repository ..."       | tee -a $OutputLOG ; _install_de_apt & spinner $!
+              ;;
+
+    ppa     ) echo -ne "Installing deluge ${bold}${cyan}$latest_stable${normal} from stable ppa ..." | tee -a $OutputLOG ; _install_de_ppa & spinner $!
+              ;;
+
+    source  ) [[ ! -f $LOCKLocation/deluge.dependencies.lock ]] && {
+              echo -ne "Installing deluge build dependencies ..." | tee -a $OutputLOG
+              _install_de_dependencies & spinner $!
+              _check_status ded ; }
+
+              echo -ne "Installing deluge ${bold}${cyan}$version${normal} from source codes ..."     | tee -a $OutputLOG
+              _install_de_source & spinner $!
+              ;;
+
+    alt     ) [[ ! -f $LOCKLocation/deluge.dependencies.lock ]] && {
+              echo -ne "Installing deluge build dependencies ..." | tee -a $OutputLOG
+              _install_de_dependencies & spinner $!
+              _check_status ded ; }
+
+              echo -ne "Installing another deluge ${bold}${cyan}$version${normal} from source codes ..." | tee -a $OutputLOG 
+              _install_de_alt & spinner $!
+              ;;
+esac
+
+cd
+_check_status de
