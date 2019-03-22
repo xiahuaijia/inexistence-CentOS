@@ -22,10 +22,6 @@ baihuangse=${white}${on_yellow}; bailanse=${white}${on_blue}; bailvse=${white}${
 heibaise=${black}${on_white}; heihuangse=${on_yellow}${black}; jiacu=${normal}${bold}; shanshuo=$(tput blink); wuguangbiao=$(tput civis); guangbiao=$(tput cnorm)
 CW="${bold}${baihongse} ERROR ${jiacu}";ZY="${baihongse}${bold} ATTENTION ${jiacu}";JG="${baihongse}${bold} WARNING ${jiacu}"
 
-# Sustem check
-DISTRO=$( awk -F'[= "]' '/PRETTY_NAME/{print $3}' /etc/os-release )
-CODENAME=$( cat /etc/os-release | grep VERSION= | tr '[A-Z]' '[a-z]' | sed 's/\"\|(\|)\|[0-9.,]\|version\|lts//g' | awk '{print $2}' )
-
 function version_ge(){ test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1" ; }
 
 function _check_status() {
@@ -36,9 +32,6 @@ local LockName=$1
 
 # Don't know why [ && Success=Yes || Success=No ] doesn't work，so use lock file instead
 rm -f /tmp/de.1.lock /tmp/de.2.lock
-
-
-
 
 
 OPTS=$(getopt -n "$0" -o m:v:b: --long "install-mode:,version:,branch:" -- "$@")
@@ -53,10 +46,6 @@ while true; do
      * ) break ;;
   esac
 done
-
-
-
-
 
 # Check if input version is available
 DeSource="http://download.deluge-torrent.org/source"
@@ -86,20 +75,11 @@ lt_ver=$( pkg-config --exists --print-errors "libtorrent-rasterbar >= 3.0.0" 2>&
 # [[ $mode =~ (source|alt) ]] && RN=$(shuf -i 1-999 -n1)
 
 
-
-
-
 case $mode in
-    apt     ) sleep 0  ;;
-    ppa     ) sleep 0  ;;
     source  ) sleep 0  ;;
     alt     ) sleep 0  ;;
-    ""   | *) echo -e "\n${CW} Installation mode must be specified as apt, ppa, source or alt${normal}\n"   ;;
+    ""   | *) echo -e "\n${CW} Installation mode must be specified as source or alt${normal}\n"   ;;
 esac
-
-
-
-
 
 spinner() {
     local pid=$1
@@ -115,25 +95,18 @@ spinner() {
     printf "    \b\b\b\b"
 }
 
-
-
-
-
 # Install build dependencies for deluge 
 function _install_de_dependencies() {
 
 # Install Dependencies without python-libtorrent (libtorrent-rasterbar should have been built before)
-apt-get install -y python python-twisted python-openssl python-setuptools intltool python-xdg python-chardet geoip-database python-notify python-pygame python-glade2 librsvg2-common xdg-utils python-mako python-pip >> $OutputLOG 2>&1 && touch /tmp/ded.1.lock || touch /tmp/ded.2.lock
+# 安装 Deluge 依赖
+    yum install -y yum install GeoIP SOAPpy boost-filesystem boost-python boost-system boost-thread pyOpenSSL python-chardet python-fpconst python-setuptools python-simplejson python-twisted-core python-zope-interface pyxdg rb_libtorrent rb_libtorrent-python python-beaker python-mako python-markupsafe python-twisted-web gettext python-GeoIP rb_libtorrent-python2 python-setproctitle python-pillow python intltool xdg-utils python-mako gnome-python2 >> $OutputLOG 2>&1 && touch /tmp/ded.1.lock || touch /tmp/ded.2.lock
 
 # This is for deluge 2.0
 pip install --upgrade pip >> $OutputLOG 2>&1
 /usr/local/bin/pip install --upgrade twisted pillow rencode pyopenssl >> $OutputLOG 2>&1
 
 [[ -f /tmp/ded.1.lock ]] && touch $LOCKLocation/deluge.dependencies.lock ; }
-
-
-
-
 
 # Fetch source files
 function _get_source_codes() {
@@ -161,10 +134,6 @@ DeTmpPath2=$SCLocation/deluge-$version-tmp/lib/python2.7/site-packages
 mkdir -p $DeTmpPath2
 PYTHONPATH=$DeTmpPath2 python setup.py install --prefix=$DeTmpPath >> $OutputLOG 2>&1 ; }
 
-
-
-
-
 # Install from source code
 function _install_de_source() {
 
@@ -173,7 +142,7 @@ _get_source_codes
 [[ $DESSL == Yes ]] && { _de_ssl_fix && _de_install_diff ; version_o=$version ; version=1.3.15 && _get_source_codes ; }
 
 python setup.py build >> $OutputLOG 2>&1
-python setup.py install --install-layout=deb --record /etc/inexistence/01.Log/install_deluge_$version.txt >> $OutputLOG 2>&1 && touch /tmp/de.1.lock || touch /tmp/de.2.lock
+python setup.py install --record /etc/inexistence/01.Log/install_deluge_$version.txt >> $OutputLOG 2>&1 && touch /tmp/de.1.lock || touch /tmp/de.2.lock
 
 [[ $DESSL == Yes ]] && {
 mv -f $SCLocation/deluge-$version_o-tmp/bin/deluged /usr/bin/deluged
@@ -184,9 +153,6 @@ rm -rf deluge-$version
 
 [[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.lock
 [[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.source.$version.lock ; }
-
-
-
 
 
 # Install another version of deluge (e.g. 1.3.9 for KeepFRDS)
@@ -206,70 +172,11 @@ rm -rf $DeTmpPath
 [[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.alt.lock
 [[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.alt.$version.lock ; }
 
-
-
-
-
-# Install from PPA
-function _install_de_ppa() {
-
-latest_stable=` wget -qO- https://dev.deluge-torrent.org/wiki/ReleaseNotes | grep wiki/ReleaseNotes | grep -Eo "[12]\.[0-9.]+" | sed 's/">/ /' | awk '{print $1}' | head -n1 `
-[[ -z $latest_stable ]] && latest_stable=1.3.15
-
-if   [[ $DISTRO == Debian ]]; then
-
-    echo 'deb http://ppa.launchpad.net/deluge-team/ppa/ubuntu trusty main'        >> /etc/apt/sources.list
-    apt-get update                                                                >> $OutputLOG 2>&1
-    apt-get install -t trusty deluge deluged deluge-web deluge-console deluge-gtk >> $OutputLOG 2>&1 && touch /tmp/de.1.lock || touch /tmp/de.2.lock
-
-elif [[ $DISTRO == Ubuntu ]]; then
-
-    add-apt-repository -y ppa:deluge-team/ppa         >> $OutputLOG 2>&1
-    apt-get update                                    >> $OutputLOG 2>&1
-  # apt-get install python-libtorrent                 >> $OutputLOG 2>&1
-  # apt-get install -y --allow-change-held-packages --allow-downgrades libtorrent-rasterbar8=1.0.11-1~xenial~ppa1.1 python-libtorrent=1.0.11-1~xenial~ppa1.1 >> $OutputLOG 2>&1
-  # apt-mark hold python-libtorrent                   >> $OutputLOG 2>&1
-  # apt-mark hold libtorrent-rasterbar8               >> $OutputLOG 2>&1
-    apt-get install -t trusty deluge deluged deluge-web deluge-console deluge-gtk >> $OutputLOG 2>&1 && touch /tmp/de.1.lock || touch /tmp/de.2.lock
-
-fi
-
-[[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.lock
-[[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.ppa.lock ; }
-
-
-
-
-
-# Install from repository
-function _install_de_apt() {
-
-apt-get install -y deluge deluged deluge-web deluge-console deluge-gtk >> $OutputLOG 2>&1 && touch /tmp/de.1.lock || touch /tmp/de.2.lock
-
-[[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.lock
-[[ -f /tmp/de.1.lock ]] && touch $LOCKLocation/deluge.apt.lock ; }
-
-[[ $mode == apt ]] && {
-version=$( apt-cache policy deluge | grep -B1 http | grep -Eo "[012]\.[0-9]+.[0-9]+" | head -n1 )
-[[ -z $version ]] && {
-[[ $CODENAME == bionic  ]] && version=1.3.15 ; [[ $CODENAME == xenial ]] && version=1.3.12 ; [[ $CODENAME == trusty ]] && version=1.3.6
-[[ $CODENAME == stretch ]] && version=1.3.13 ; [[ $CODENAME == jessie ]] && version=1.3.10 ; } ; }
-
-
-
-
-
 mkdir -p $SCLocation $LOCKLocation
 cd       $SCLocation
 echo "\n\n\n$(date "+%Y.%m.%d.%H.%M.%S")   $RN\n\n\n" >> $OutputLOG
 
 case $mode in
-    apt     ) echo -ne "Installing deluge ${bold}${cyan}$version${normal} from repository ..."       | tee -a $OutputLOG ; _install_de_apt & spinner $!
-              ;;
-
-    ppa     ) echo -ne "Installing deluge ${bold}${cyan}$latest_stable${normal} from stable ppa ..." | tee -a $OutputLOG ; _install_de_ppa & spinner $!
-              ;;
-
     source  ) [[ ! -f $LOCKLocation/deluge.dependencies.lock ]] && {
               echo -ne "Installing deluge build dependencies ..." | tee -a $OutputLOG
               _install_de_dependencies & spinner $!
