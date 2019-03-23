@@ -13,14 +13,11 @@ DISABLE=0
 DeBUG=1
 INEXISTENCEVER=1.0.0
 INEXISTENCEDATE=2019.03.20
-script_lang=eng
 # --------------------------------------------------------------------------------
-
-
 
 # 获取参数
 
-OPTS=$(getopt -n "$0" -o dsyu:p: --long "yes,tr-skip,skip,debug,apt-yes,apt-no,swap-yes,swap-no,bbr-yes,bbr-no,flood-yes,flood-no,rdp-vnc,rdp-x2go,rdp-no,wine-yes,wine-no,tools-yes,tools-no,flexget-yes,flexget-no,rclone-yes,rclone-no,enable-ipv6,tweaks-yes,tweaks-no,mt-single,mt-double,mt-max,mt-half,skip-apps,eng,chs,user:,password:,webpass:,de:,delt:,qb:,rt:,tr:,lt:" -- "$@")
+OPTS=$(getopt -n "$0" -o dsyu:p: --long "yes,tr-skip,skip,debug,apt-yes,apt-no,swap-yes,swap-no,bbr-yes,bbr-no,flood-yes,flood-no,flexget-yes,flexget-no,rclone-yes,rclone-no,enable-ipv6,tweaks-yes,tweaks-no,mt-single,mt-double,mt-max,mt-half,user:,password:,webpass:,de:,delt:,qb:,rt:,tr:,lt:" -- "$@")
 
 eval set -- "$OPTS"
 
@@ -38,8 +35,6 @@ while true; do
     -d | --debug    ) DeBUG=1           ; shift ;;
     -y | --yes      ) ForceYes=1        ; shift ;;
 
-    --eng           ) script_lang=eng   ; shift ;;
-    --chs           ) script_lang=chs   ; shift ;;
     --tr-skip       ) TRdefault="No"    ; shift ;;
     --enable-ipv6   ) IPv6Opt=-i        ; shift ;;
     --apt-yes       ) aptsources="Yes"  ; shift ;;
@@ -70,7 +65,9 @@ if [[ $DeBUG == 1 ]]; then
     ANUSER=aniverse ; aptsources=No ; MAXCPUS=$(nproc)
 fi
 # --------------------------------------------------------------------------------
-export OutputLOG=/etc/inexistence/01.Log/install.txt 
+export OutputLOG=install.txt 
+touch $OutputLOG
+export Installation_status_prefix="inexistence-CentOS"
 export local_packages=/etc/inexistence/00.Installation
 export SCLocation=/etc/inexistence/01.Log/SourceCodes
 export LOCKLocation=/etc/inexistence/01.Log/Lock
@@ -91,7 +88,17 @@ CW="${bold}${baihongse} ERROR ${jiacu}";ZY="${baihongse}${bold} ATTENTION ${jiac
 _colors
 # --------------------------------------------------------------------------------
 # 增加 swap
-function _use_swap() { dd if=/dev/zero of=/root/.swapfile bs=1M count=2048  ;  mkswap /root/.swapfile  ;  swapon /root/.swapfile  ;  swapon -s  ;  }
+function _use_swap() { 
+    dd if=/dev/zero of=/root/.swapfile bs=1MiB count=2048 >> $OutputLOG 2>&1
+    chmod 600 /root/.swapfile
+    mkswap /root/.swapfile >> $OutputLOG 2>&1
+    swapon /root/.swapfile >> $OutputLOG 2>&1
+    if [[ ` swapon -s | grep -c /root/.swapfile ` == 1 ]]; then
+    touch /tmp/$Installation_status_prefix.SwapON.1.lock
+    else
+    touch /tmp/$Installation_status_prefix.SwapON.2.lock 
+    fi
+}
 
 # 关掉之前开的 swap
 function _disable_swap() { swapoff /root/.swapfile  ;  rm -f /root/.swapfile ; }
@@ -158,7 +165,7 @@ function _client_version_check(){
 [[ $rt_installed == Yes ]] && rtorrent_ver=$( rtorrent -h 2>&1 | head -n1 | sed -ne 's/[^0-9]*\([0-9]*\.[0-9]*\.[0-9]*\)[^0-9]*/\1/p' )
 [[ $tr_installed == Yes ]] && trd_ver=$( transmission-daemon --help 2>&1 | head -n1 | awk '{print $2}' )
 find /usr/lib -name libtorrent-rasterbar* 2>/dev/null | grep -q libtorrent-rasterbar && lt_exist=yes
-lt_ver=$( pkg-config --exists --print-errors "libtorrent-rasterbar >= 3.0.0" 2>&1 | awk '{print $NF}' | grep -oE [0-9]+.[0-9]+.[0-9]+ )
+lt_ver=$( python -c "import libtorrent; print libtorrent.version" | grep -Eo "[012]\.[0-9]+\.[0-9]+" )
 lt_ver_qb3_ok=No ; [[ ! -z $lt_ver ]] && version_ge $lt_ver 1.0.6 && lt_ver_qb3_ok=Yes
 lt_ver_de2_ok=No ; [[ ! -z $lt_ver ]] && version_ge $lt_ver 1.1.3 && lt_ver_de2_ok=Yes ; }
 
@@ -192,27 +199,21 @@ rpm -Uvh http://www.elrepo.org/elrepo-release-7.0-3.el7.elrepo.noarch.rpm >> $Ou
 
 # 安装基础软件 最小化安装
 function _env_install() {
-# 我的私货~
-yum install -y screen git curl jq git python-devel libffi-devel openssl-devel python-setuptools ncurses-devel gcc m2crypto \
-iperf iperf3 htop nload vim python-pip dstat ethtool smartmontools tree zip unzip >> $OutputLOG 2>&1
+yum install -y screen git curl jq python-devel libffi-devel python-setuptools ncurses-devel m2crypto iperf iperf3 htop nload vim python-pip dstat ethtool smartmontools tree zip unzip >> $OutputLOG 2>&1
 
-pip install --upgrade pip setuptools
+pip install --upgrade pip setuptools >> $OutputLOG 2>&1
 
 systemctl stop postfix
-systemctl disable postfix
+systemctl disable postfix >> $OutputLOG 2>&1
 }
 
 
 ### 输入自己想要的软件版本 ###
 # ${blue}(use it at your own risk)${normal}
 function _input_version() {
-if [[ $script_lang == eng ]]; then
 echo -e "\n${JG} ${bold}Use it at your own risk and make sure to input version correctly${normal}"
 read -ep "${bold}${yellow}Input the version you want: ${cyan}" input_version_num; echo -n "${normal}"
-elif [[ $script_lang == chs ]]; then
-echo -e "\n${JG} ${bold}确保你输入的版本号能用，不然输错了脚本也不管的${normal}"
-read -ep "${bold}${yellow}输入你想要的版本号： ${cyan}" input_version_num; echo -n "${normal}"
-fi ; }
+}
 
 function _input_version_lt() {
 echo -e "\n${baihongse}${bold} ATTENTION ${normal} ${bold}Make sure to input the correct version${normal}"
@@ -237,12 +238,6 @@ cancel() { echo -e "${normal}" ; exit ; }
 trap cancel SIGINT
 
 # --------------------------------------------------------------------------------
-# 快速跳转
-#[[ $script_lang == eng ]] &&
-#[[ $script_lang == chs ]] &&
-
-if [[ $script_lang == eng ]]; then
-
 lang_do_not_install="Do not install"
 language_select_another_version="Select another version"
 which_version_do_you_want="Which version do you want?"
@@ -250,19 +245,6 @@ lang_yizhuang="You have already installed"
 lang_will_be_installed="will be installed"
 lang_note_that="Note that"
 lang_would_you_like_to_install="Would you like to install"
-
-elif [[ $script_lang == chs ]]; then
-
-lang_do_not_install="我不想安装"
-language_select_another_version="以上版本都不要，我要另选一个版本"
-which_version_do_you_want="你想要装什么版本？"
-lang_yizhuang="你已经安装了"
-lang_will_be_installed="将会被安装"
-lang_note_that="注意"
-lang_would_you_like_to_install="是否需要安装"
-
-fi
-
 
 
 # --------------------- 系统检查 --------------------- #
@@ -1009,30 +991,15 @@ echo ; }
 # --------------------- 询问需要安装的 rTorrent 版本 --------------------- #
 
 function _askrt() {
-
-if [[ $script_lang == eng ]]; then
-
 lang_ipv6_1="with IPv6 support"
 lang_ipv6_2="with UNOFFICAL IPv6 support"
 lang_3="released on Sep 04, 2015"
 lang_4="feature-bind branch on Jan 30, 2018"
 branch=branch
 
-elif [[ $script_lang == chs ]]; then
-
-lang_ipv6_1="支持 IPv6"
-lang_ipv6_2="支持 IPv6 的修改版"
-lang_3="2015 年的正式发布版本"
-lang_4="2018 年 1 月 的 feature-bind 分支版本"
-branch="分支"
-
-fi
 
 
 while [[ $rt_version = "" ]]; do
-
-
-
 
     [[ ! $rtorrent_dev == 1 ]] &&
     echo -e "${green}01)${normal} rTorrent ${cyan}0.9.2${normal}" &&
@@ -1093,9 +1060,7 @@ rt_versionIns=`echo $rt_version | grep -Eo [0-9].[0-9].[0-9]`
 
 if [[ $rt_version == No ]]; then
 
-    [[ $script_lang == eng ]] && echo "${baizise}rTorrent will ${baihongse}not${baizise} be installed${normal}"
-    [[ $script_lang == chs ]] && echo "${baihongse}跳过${baizise} rTorrent 的安装${normal}"
-    
+    echo "${baizise}rTorrent will ${baihongse}not${baizise} be installed${normal}"
     InsFlood='No rTorrent'
 
 else
@@ -1358,15 +1323,10 @@ echo ; }
 
 # --------------------- 询问是否重启 --------------------- #
 function _askreboot() {
-if [[ $script_lang == eng ]]; then
 lang_1="Would you like to reboot the system now?"
 lang_2="WTF, try reboot manually?"
 lang_3="Reboot has been canceled..."
-elif [[ $script_lang == chs ]]; then
-lang_1="你现在想要重启系统么？"
-lang_2="emmmm，重启失败，你手动重启试试？"
-lang_3="已取消重启……"
-fi
+
 
 # read -ep "${bold}${yellow}Would you like to reboot the system now? ${normal} [y/${cyan}N${normal}]: " is_reboot
 echo -ne "${bold}${yellow}$lang_1 ${normal} [y/${cyan}N${normal}]: "
@@ -1400,8 +1360,7 @@ fi ; }
 
 function _askcontinue() {
 
-[[ $script_lang == eng ]] && echo -e "\n${bold}Please check the following information${normal}"
-[[ $script_lang == chs ]] && echo -e "\n${bold}                  请确认以下安装信息${normal}"
+echo -e "\n${bold}Please check the following information${normal}"
 echo
 echo '####################################################################'
 echo
@@ -1425,31 +1384,41 @@ echo "                  ${cyan}${bold}SourceList${normal}    ${bold}${yellow}${a
 echo
 echo '####################################################################'
 echo
-[[ $script_lang == eng ]] && echo -e "${bold}If you want to stop, Press ${baihongse}Ctrl+C${jiacu} ; or Press ${bailvse}ENTER${normal} ${bold}to start${normal}"
-[[ $script_lang == chs ]] && echo -e "${bold}按 ${baihongse}Ctrl+C${jiacu} 取消安装，或者敲 ${bailvse}ENTER${normal}${bold} 开始安装${normal}"
+echo -e "${bold}If you want to stop, Press ${baihongse}Ctrl+C${jiacu} ; or Press ${bailvse}ENTER${normal} ${bold}to start${normal}"
 [[ ! $ForceYes == 1 ]] && read input
-[[ $script_lang == eng ]] && 
-echo -e "${bold}${magenta}The selected softwares $lang_will_be_installed, this may take between${normal}" &&
+echo -e "${bold}${magenta}The selected softwares $lang_will_be_installed, this may take between${normal}"
 echo -e "${bold}${magenta}1 - 100 minutes depending on your systems specs and your selections${normal}\n"
-[[ $script_lang == chs ]] && 
-echo -e "${bold}${magenta}开始安装所需的软件，由于所选选项的区别以及盒子硬件性能的差异，安装所需时间也会有所不同${normal}\n"
 }
 
+# --------------------- 替换系统源 --------------------- #
+function _setsources() {
 
+[[ $USESWAP == Yes ]] && { 
+    echo -ne "Enable Swap space ..." | tee -a $OutputLOG
+    _use_swap & spinner $!
+    _check_status SwapON ; }
+#if [[ $aptsources == Yes ]]; then
+#    cp /etc/apt/sources.list /etc/apt/sources.list."$(date "+%Y%m%d.%H%M")".bak
+#else
+#    apt-get -y update
+#fi
 
-
-
+echo -e "Replace system source ... ${green}${bold}DONE${normal}" ; }
 # --------------------- 创建用户、准备工作 --------------------- #
-
 function _setuser() {
+[[ -d /etc/inexistence ]] && rm -rf /etc/inexistence
+git clone --depth=1 https://github.com/Aniverse/inexistence /etc/inexistence >> $OutputLOG 2>&1
 mkdir -p $SCLocation $LOCKLocation
 mkdir -p /etc/inexistence/01.Log/INSTALLATION/packages /etc/inexistence/00.Installation/MAKE
+chmod -R 777 /etc/inexistence
 
 if id -u ${ANUSER} >/dev/null 2>&1; then
-    echo -e "\n${ANUSER} already exists\n"
+    echo "${ANUSER}:${ANPASS}" | chpasswd
+    echo -e "${cyan}${ANUSER}${normal} already exists, Change Password ... ${green}${bold}DONE${normal}"
 else
-    adduser ${ANUSER} -m
-    echo "${ANUSER}:${ANPASS}" | sudo chpasswd
+    adduser ${ANUSER} -m >> $OutputLOG 2>&1
+    echo "${ANUSER}:${ANPASS}" | chpasswd
+    echo -e "Adduser ${cyan}${ANUSER}${normal} ... ${green}${bold}DONE${normal}"
 fi
 
 export TZ="/usr/share/zoneinfo/Asia/Shanghai"
@@ -1487,42 +1456,15 @@ FLOOD=${InsFlood}
 如果要截图请截完整点，包含上面所有信息
 EOF
 
-mkdir -p /etc/inexistence/01.Log/lock
-touch /etc/inexistence/01.Log/lock/username.$ANUSER.lock
-
-cat>/etc/inexistence/01.Log/lock/inexistence.lock<<EOF
-##### Used for future script determination #####
-INEXISTENCEinstalled=Yes
-INEXISTENCEVER=${INEXISTENCEVER}
-INEXISTENCEDATE=${INEXISTENCEDATE}
-USETWEAKS=${UseTweaks}
-ANUSER=${ANUSER}
-##### U ########################################
-EOF
-
-
 # 脚本设置
 mkdir -p /etc/inexistence/00.Installation
 mkdir -p /etc/inexistence/01.Log
 mkdir -p /etc/inexistence/03.Files
 mkdir -p /var/www/h5ai
 
-ln -s /etc/inexistence /var/www/h5ai/inexistence
-ln -s /etc/inexistence /home/${ANUSER}/inexistence
-cp -f /etc/inexistence/00.Installation/script/* /usr/local/bin ; }
-
-# --------------------- 替换系统源 --------------------- #
-function _setsources() {
-
-[[ $USESWAP == Yes ]] && _use_swap
-
-#if [[ $aptsources == Yes ]]; then
-#    cp /etc/apt/sources.list /etc/apt/sources.list."$(date "+%Y%m%d.%H%M")".bak
-#else
-#    apt-get -y update
-#fi
-
-echo -e "\n\n\n${bailvse}  STEP-ONE-COMPLETED  ${normal}\n\n"
+ln -s /etc/inexistence /var/www/h5ai/inexistence >> $OutputLOG 2>&1
+ln -s /etc/inexistence /home/${ANUSER}/inexistence >> $OutputLOG 2>&1
+cp -f /etc/inexistence/00.Installation/script/* /usr/local/bin >> $OutputLOG 2>&1
 }
 
 # --------------------- 安装 libtorrent-rasterbar --------------------- #
@@ -1549,10 +1491,9 @@ fi
 fi ; }
 
 function _check_status() {
-local LockName=$1
-[[   -f /tmp/$LockName.1.lock ]] && echo -e " ${green}${bold}DONE${normal}"
-[[   -f /tmp/$LockName.2.lock ]] && echo -e " ${red}${bold}FAILED${normal}"
-[[ ! -f /tmp/$LockName.1.lock ]] && [[ ! -f /tmp/$LockName.2.lock ]] && echo -e " ${red}${bold}Unknown State${normal}" ; }
+[[   -f /tmp/$Installation_status_prefix.$1.1.lock ]] && echo -e " ${green}${bold}DONE${normal}"
+[[   -f /tmp/$Installation_status_prefix.$1.2.lock ]] && echo -e " ${red}${bold}FAILED${normal}"
+[[ ! -f /tmp/$Installation_status_prefix.$1.1.lock ]] && [[ ! -f /tmp/$Installation_status_prefix.$1.2.lock ]] && echo -e " ${red}${bold}Unknown State${normal}" ; }
 
 function spinner() {
     local pid=$1
@@ -1582,11 +1523,6 @@ function __install_lt(){
 done
 
 ################################################################################################
-DebLocation=/etc/inexistence/01.Log/DebPackages
-
-# Use RC_1_1 if not specified
-[[ -z $branch ]] && branch=RC_1_1
-
 # Determin RC_1_0 and RC_1_1's version
  [[ $branch == RC_1_0 ]] && version=1.0.11
  [[ $branch == RC_1_1 ]] && version=1.1.12
@@ -1596,14 +1532,15 @@ DebLocation=/etc/inexistence/01.Log/DebPackages
 [[ $( echo $version | grep -Eo "[012]\.[0-9]+\.[0-9]+" ) ]] && branchV=$( echo $version | sed "s/\./_/g" )
 
 [[ $DeBUG == 1 ]] && echo -e "version=$version, branch=$branch, branchV=$branchV"
-# Use 6.6.6 when version cannot be determind
+
 #[ ! -z $branch ] && [ -z $version ] && version=$( wget -qO- https://github.com/arvidn/libtorrent/raw/$branch/include/libtorrent/version.hpp | grep LIBTORRENT_VERSION | tail -n1 | grep -oE "[0-9.]+\"" | sed "s/.0\"//" )
 
 # Random number for marking different installations
 RN=$(shuf -i 1-999 -n1)
+
 ################################################################################################
 
-mkdir -p $SCLocation $DebLocation
+mkdir -p $SCLocation
 cd       $SCLocation
 echo "\n\n\n$(date "+%Y.%m.%d.%H.%M.%S")   $RN\n\n\n" >> $OutputLOG
 
@@ -1625,8 +1562,7 @@ _check_status lt
 function _install_lt_dependencies() {
 
 yum groupinstall -y 'Development Tools' >> $OutputLOG 2>&1
-yum install -y boost-devel >> $OutputLOG 2>&1
-
+yum install -y boost-devel >> $OutputLOG 2>&1 && touch /tmp/$Installation_status_prefix.ltd.1.lock || touch /tmp/$Installation_status_prefix.ltd.2.lock
 }
 
 # Install from source codes
@@ -1648,14 +1584,15 @@ else
 fi
 
 make -j$MAXCPUS >> $OutputLOG 2>&1
-strip -s bindings/python/build/lib.linux-x86_64-2.7/libtorrent.so
+#strip -s bindings/python/build/lib.linux-x86_64-2.7/libtorrent.so
+make install 
 
-make install >> $OutputLOG 2>&1 
-
-python -c "import libtorrent; print libtorrent.version"
+if [[ ` python -c "import libtorrent; print libtorrent.version" | grep -Eo "[012]\.[0-9]+\.[0-9]+" ` == $version ]]; then
+touch /tmp/$Installation_status_prefix.lt.1.lock
+else
+touch /tmp/$Installation_status_prefix.lt.2.lock
+fi
 ldconfig
-read answerxasdsad
-
 }
 
 # --------------------- 安装 qBittorrent --------------------- #
@@ -1682,7 +1619,7 @@ else
 
         export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/Qt-5.5.1/lib/pkgconfig
         export PATH=/usr/local/Qt-5.5.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-        qmake --version | tee -a /etc/inexistence/01.Log/installed.log
+        qmake --version
 
     else
 
@@ -1758,42 +1695,37 @@ touch /etc/inexistence/01.Log/lock/qbittorrent.lock ; }
 # --------------------- 安装 Deluge --------------------- #
 
 function _installde() {
-
     if [[ $de_test == yes ]]; then
 
         [[ $de_version == yes ]] && bash <(wget -qO- https://github.com/Aniverse/inexistence/raw/master/00.Installation/install/install_deluge) -v $de_version
-
         [[ $de_branch  == yes ]] && bash <(wget -qO- https://github.com/Aniverse/inexistence/raw/master/00.Installation/install/install_deluge) -b $de_version &&
         wget -q https://github.com/Aniverse/filesss/raw/master/TorrentGrid.js -O /usr/lib/python2.7/dist-packages/deluge-1.3.15.dev0-py2.7.egg/deluge/ui/web/js/deluge-all/TorrentGrid.js
 
     else
 
-if [[ $de_version == "Install from repo" ]]; then
+    if [[ $de_version == "Install from repo" ]]; then
+        yum install -y deluge deluge-web deluge-common deluge-console deluge-gtk >> $OutputLOG 2>&1
+    else
+        # 安装 Deluge 依赖
+        yum install -y yum install GeoIP SOAPpy boost-filesystem boost-python boost-system boost-thread pyOpenSSL python-chardet python-fpconst python-simplejson python-twisted-core python-zope-interface pyxdg rb_libtorrent rb_libtorrent-python python-beaker python-mako python-markupsafe python-twisted-web gettext python-GeoIP rb_libtorrent-python2 python-setproctitle python-pillow python intltool xdg-utils python-mako gnome-python2 >> $OutputLOG 2>&1
 
-    yum install -y deluge deluge-web deluge-common deluge-console deluge-gtk
+        # Deluge 2.0 需要高版本的这些
+        [[ $Deluge_2_later == Yes ]] &&
+        pip install --upgrade twisted pillow rencode pyopenssl >> $OutputLOG 2>&1
 
-else
-
-    # 安装 Deluge 依赖
-    yum install -y yum install GeoIP SOAPpy boost-filesystem boost-python boost-system boost-thread pyOpenSSL python-chardet python-fpconst python-setuptools python-simplejson python-twisted-core python-zope-interface pyxdg rb_libtorrent rb_libtorrent-python python-beaker python-mako python-markupsafe python-twisted-web gettext python-GeoIP rb_libtorrent-python2 python-setproctitle python-pillow python intltool xdg-utils python-mako gnome-python2
-
-    # Deluge 2.0 需要高版本的这些
-    [[ $Deluge_2_later == Yes ]] &&
-    pip install --upgrade twisted pillow rencode pyopenssl
-
-    cd /etc/inexistence/00.Installation/MAKE
+        cd /etc/inexistence/00.Installation/MAKE
 
     if [[ $Deluge_1_3_15_skip_hash_check_patch == Yes ]]; then
         export de_version=1.3.15
-        wget -O deluge-$de_version.tar.gz https://github.com/Aniverse/BitTorrentClientCollection/raw/master/Deluge/deluge-$de_version.skip.tar.gz
+        wget -q -O deluge-$de_version.tar.gz https://github.com/Aniverse/BitTorrentClientCollection/raw/master/Deluge/deluge-$de_version.skip.tar.gz
         tar xf deluge-$de_version.tar.gz
         rm -f deluge-$de_version.tar.gz
         cd deluge-$de_version
     elif [[ $de_version == 2.0.dev ]]; then
-        git clone -b develop https://github.com/deluge-torrent/deluge deluge-$de_version
+        git clone -b develop https://github.com/deluge-torrent/deluge deluge-$de_version >> $OutputLOG 2>&1
         cd deluge-$de_version
     else
-        wget http://download.deluge-torrent.org/source/deluge-$de_version.tar.gz
+        wget -q http://download.deluge-torrent.org/source/deluge-$de_version.tar.gz
         tar xf deluge-$de_version.tar.gz
         rm -f deluge-$de_version.tar.gz
         cd deluge-$de_version
@@ -1812,52 +1744,50 @@ else
         python setup.py build     > /dev/null
         python setup.py install   > /dev/null
         mv -f /usr/bin/deluged /usr/bin/deluged2
-        wget http://download.deluge-torrent.org/source/deluge-1.3.15.tar.gz
+        wget -q http://download.deluge-torrent.org/source/deluge-1.3.15.tar.gz
         tar xf deluge-1.3.15.tar.gz && rm -f deluge-1.3.15.tar.gz && cd deluge-1.3.15
     fi
 
-    python setup.py build  > /dev/null
-    python setup.py install --record /etc/inexistence/01.Log/install_deluge_filelist_$de_version.txt  > /dev/null
-    python setup.py install_data # 给桌面环境用的
-
-    [[ $Deluge_ssl_fix_patch == Yes ]] && mv -f /usr/bin/deluged2 /usr/bin/deluged # 让老版本 Deluged 保留，其他用新版本
-
-fi
-
+        python setup.py build  > /dev/null
+        python setup.py install --record /etc/inexistence/01.Log/install_deluge_filelist_$de_version.txt  > /dev/null
+        # 给桌面环境用的
+        python setup.py install_data > /dev/null
+        [[ $Deluge_ssl_fix_patch == Yes ]] && mv -f /usr/bin/deluged2 /usr/bin/deluged # 让老版本 Deluged 保留，其他用新版本
     fi
-
-cd ; echo -e "\n\n\n\n${bailanse}  DELUGE-INSTALLATION-COMPLETED  ${normal}\n\n\n" ; }
+fi
+    if [[ ` deluged --version 2>&1 | grep deluged | awk '{print $2}' ` == $de_version ]]; then
+        touch /tmp/$Installation_status_prefix.installde.1.lock
+    else
+        touch /tmp/$Installation_status_prefix.installde.2.lock
+    fi
+}
 
 # --------------------- Deluge 启动脚本、配置文件 --------------------- #
 
 function _setde() {
-
-# [[ -d /home/${ANUSER}/.config/deluge ]] && rm -rf /home/${ANUSER}/.config/deluge.old && mv /home/${ANUSER}/.config/deluge /root/.config/deluge.old
-mkdir -p /home/${ANUSER}/deluge/{download,torrent,watch} /var/www
-rm -rf /var/www/h5ai/deluge
-ln -s /home/${ANUSER}/deluge/download /var/www/h5ai/deluge
-chmod -R 777 /home/${ANUSER}/deluge
-chown -R ${ANUSER}:${ANUSER} /home/${ANUSER}/deluge
-
-touch /etc/inexistence/01.Log/deluged.log /etc/inexistence/01.Log/delugeweb.log
-chmod -R 666 /etc/inexistence/01.Log
-
-# mkdir -p /home/${ANUSER}/.config  && cd /home/${ANUSER}/.config && rm -rf deluge
-# cp -f -r /etc/inexistence/00.Installation/template/config/deluge /home/${ANUSER}/.config
-mkdir -p /root/.config && cd /root/.config
-[[ -d /root/.config/deluge ]] && { rm -rf /root/.config/deluge.old ; mv -f /root/.config/deluge /root/.config/deluge.old ; }
-cp -rf /etc/inexistence/00.Installation/template/config/deluge /root/.config/deluge
-chmod -R 666 /root/.config
-cd
-
+    # [[ -d /home/${ANUSER}/.config/deluge ]] && rm -rf /home/${ANUSER}/.config/deluge.old && mv /home/${ANUSER}/.config/deluge /root/.config/deluge.old
+    mkdir -p /home/${ANUSER}/deluge/{download,torrent,watch} /var/www
+    rm -rf /var/www/h5ai/deluge
+    ln -s /home/${ANUSER}/deluge/download /var/www/h5ai/deluge
+    chmod -R 777 /home/${ANUSER}/deluge
+    chown -R ${ANUSER}:${ANUSER} /home/${ANUSER}/deluge
+    
+    touch /etc/inexistence/01.Log/deluged.log /etc/inexistence/01.Log/delugeweb.log
+    chmod -R 666 /etc/inexistence/01.Log
+    
+    # mkdir -p /home/${ANUSER}/.config  && cd /home/${ANUSER}/.config && rm -rf deluge
+    # cp -f -r /etc/inexistence/00.Installation/template/config/deluge /home/${ANUSER}/.config
+    mkdir -p /root/.config && cd /root/.config
+    [[ -d /root/.config/deluge ]] && { rm -rf /root/.config/deluge.old ; mv -f /root/.config/deluge /root/.config/deluge.old ; }
+    cp -rf /etc/inexistence/00.Installation/template/config/deluge /root/.config/deluge
+    chmod -R 666 /root/.config
+    cd
+    
 cat >/etc/inexistence/00.Installation/script/special/deluge.userpass.py<<EOF
 #!/usr/bin/env python
 #
 # Deluge password generator
-#
 #   deluge.password.py <password> <salt>
-#
-#
 
 import hashlib
 import sys
@@ -1871,43 +1801,39 @@ s.update(password)
 
 print s.hexdigest()
 EOF
-
-DWSALT=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-DWP=$(python /etc/inexistence/00.Installation/script/special/deluge.userpass.py ${ANPASS} ${DWSALT})
-echo "${ANUSER}:${ANPASS}:10" >> /root/.config/deluge/auth  #/home/${ANUSER}/.config/deluge/auth
-sed -i "s/delugeuser/${ANUSER}/g" /root/.config/deluge/core.conf  #/home/${ANUSER}/.config/deluge/core.conf
-sed -i "s/DWSALT/${DWSALT}/g" /root/.config/deluge/web.conf  #/home/${ANUSER}/.config/deluge/web.conf
-sed -i "s/DWP/${DWP}/g" /root/.config/deluge/web.conf  #/home/${ANUSER}/.config/deluge/web.conf
-
-cp -f /etc/inexistence/00.Installation/template/systemd/deluged.service /etc/systemd/system/deluged.service
-cp -f /etc/inexistence/00.Installation/template/systemd/deluge-web.service /etc/systemd/system/deluge-web.service
-[[ $Deluge_2_later == Yes ]] && sed -i "s/deluge-web -l/deluge-web -d -l/" /etc/systemd/system/deluge-web.service
-# cp -f /etc/inexistence/00.Installation/template/systemd/deluged@.service /etc/systemd/system/deluged@.service
-# cp -f /etc/inexistence/00.Installation/template/systemd/deluge-web@.service /etc/systemd/system/deluge-web@.service
-
-systemctl daemon-reload
-systemctl enable /etc/systemd/system/deluge-web.service
-systemctl enable /etc/systemd/system/deluged.service
-systemctl start deluged
-systemctl start deluge-web
-# systemctl enable {deluged,deluge-web}@${ANUSER}
-# systemctl start {deluged,deluge-web}@${ANUSER}
-
-# Deluge update-tracker，用于 AutoDL-Irssi
-deluged_ver_2=`deluged --version | grep deluged | awk '{print $2}'`
-deluged_port=$( grep daemon_port /root/.config/deluge/core.conf | grep -oP "\d+" )
-
-cp /etc/inexistence/00.Installation/script/special/update-tracker.py /usr/lib/python2.7/dist-packages/deluge-$deluged_ver_2-py2.7.egg/deluge/ui/console/commands/update-tracker.py
-sed -i "s/ANUSER/$ANUSER/g" /usr/local/bin/deluge-update-tracker
-sed -i "s/ANPASS/$ANPASS/g" /usr/local/bin/deluge-update-tracker
-sed -i "s/DAEMONPORT/$deluged_port/g" /usr/local/bin/deluge-update-tracker
-chmod +x /usr/lib/python2.7/dist-packages/deluge-$deluged_ver_2-py2.7.egg/deluge/ui/console/commands/update-tracker.py /usr/local/bin/deluge-update-tracker
-
-touch /etc/inexistence/01.Log/lock/deluge.lock ; }
-
-
-
-
+    
+    DWSALT=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+    DWP=$(python /etc/inexistence/00.Installation/script/special/deluge.userpass.py ${ANPASS} ${DWSALT})
+    echo "${ANUSER}:${ANPASS}:10" >> /root/.config/deluge/auth  #/home/${ANUSER}/.config/deluge/auth
+    sed -i "s/delugeuser/${ANUSER}/g" /root/.config/deluge/core.conf  #/home/${ANUSER}/.config/deluge/core.conf
+    sed -i "s/DWSALT/${DWSALT}/g" /root/.config/deluge/web.conf  #/home/${ANUSER}/.config/deluge/web.conf
+    sed -i "s/DWP/${DWP}/g" /root/.config/deluge/web.conf  #/home/${ANUSER}/.config/deluge/web.conf
+    
+    cp -f /etc/inexistence/00.Installation/template/systemd/deluged.service /etc/systemd/system/deluged.service
+    cp -f /etc/inexistence/00.Installation/template/systemd/deluge-web.service /etc/systemd/system/deluge-web.service
+    [[ $Deluge_2_later == Yes ]] && sed -i "s/deluge-web -l/deluge-web -d -l/" /etc/systemd/system/deluge-web.service
+    # cp -f /etc/inexistence/00.Installation/template/systemd/deluged@.service /etc/systemd/system/deluged@.service
+    # cp -f /etc/inexistence/00.Installation/template/systemd/deluge-web@.service /etc/systemd/system/deluge-web@.service
+    
+    systemctl daemon-reload
+    systemctl enable /etc/systemd/system/deluge-web.service
+    systemctl enable /etc/systemd/system/deluged.service
+    systemctl start deluged
+    systemctl start deluge-web
+    # systemctl enable {deluged,deluge-web}@${ANUSER}
+    # systemctl start {deluged,deluge-web}@${ANUSER}
+    
+    # Deluge update-tracker，用于 AutoDL-Irssi
+    deluged_ver_2=`deluged --version | grep deluged | awk '{print $2}'`
+    deluged_port=$( grep daemon_port /root/.config/deluge/core.conf | grep -oP "\d+" )
+    
+    cp /etc/inexistence/00.Installation/script/special/update-tracker.py /usr/lib/python2.7/dist-packages/deluge-$deluged_ver_2-py2.7.egg/deluge/ui/console/commands/update-tracker.py
+    sed -i "s/ANUSER/$ANUSER/g" /usr/local/bin/deluge-update-tracker
+    sed -i "s/ANPASS/$ANPASS/g" /usr/local/bin/deluge-update-tracker
+    sed -i "s/DAEMONPORT/$deluged_port/g" /usr/local/bin/deluge-update-tracker
+    chmod +x /usr/lib/python2.7/dist-packages/deluge-$deluged_ver_2-py2.7.egg/deluge/ui/console/commands/update-tracker.py /usr/local/bin/deluge-update-tracker
+    touch /tmp/$Installation_status_prefix.Confde.1.lock
+}
 
 # --------------------- 使用修改版 rtinst 安装 rTorrent, ruTorrent，h5ai, vsftpd --------------------- #
 
@@ -1942,11 +1868,6 @@ cp -f /etc/inexistence/00.Installation/template/systemd/irssi@.service /etc/syst
 touch /etc/inexistence/01.Log/lock/rtorrent.lock
 cd ; echo -e "\n\n\n\n${baihongse}  RT-INSTALLATION-COMPLETED  ${normal}\n\n\n" ; }
 
-
-
-
-
-
 # --------------------- Preparation for rtorrent_fast_resume.pl --------------------- #
 function _rt_fast_resume() {
 cd ; wget http://search.cpan.org/CPAN/authors/id/I/IW/IWADE/Convert-Bencode_XS-0.06.tar.gz
@@ -1957,10 +1878,6 @@ patch -uNp0 -i ../patch-t_001_tests_t
 perl Makefile.PL
 make ; make install ; cd
 rm -rf Convert-Bencode_XS-0.06 Convert-Bencode_XS-0.06.tar.gz patch-t_001_tests_t ; }
-
-
-
-
 
 # --------------------- 安装 Node.js 与 flood --------------------- #
 
@@ -1987,114 +1904,91 @@ systemctl enable flood
 
 touch /etc/inexistence/01.Log/lock/flood.lock
 
-cd ; echo -e "\n\n\n\n${baihongse}  FLOOD-INSTALLATION-COMPLETED  ${normal}\n\n\n" ; }
-
-
-
-
-
+echo -e "\n\n\n\n${baihongse}  FLOOD-INSTALLATION-COMPLETED  ${normal}\n\n\n" ; }
 
 # --------------------- 安装 Transmission --------------------- #
 
 function _installtr() {
 
 if [[ "${tr_version}" == "Install from repo" ]]; then
-
-    apt-get install -y transmission-daemon
-
+    touch /tmp/$Installation_status_prefix.installtr.1.lock || {
+    yum install -y transmission-daemon >> $OutputLOG 2>&1 && touch /tmp/$Installation_status_prefix.installtr.1.lock || touch /tmp/$Installation_status_prefix.installtr.2.lock ; }
 else
 
-  # [[ `dpkg -l | grep transmission-daemon` ]] && apt-get purge -y transmission-daemon
+    yum install -y opensum gcc gcc-c++ m4 make automake libtool gettext openssl-devel libcurl-devel intltool libevent-devel >> $OutputLOG 2>&1
 
-    apt-get install -y build-essential automake autoconf libtool pkg-config intltool libcurl4-openssl-dev libglib2.0-dev libevent-dev libminiupnpc-dev libgtk-3-dev libappindicator3-dev ca-certificates libssl-dev pkg-config checkinstall cmake git # > /dev/null
-    apt-get install -y openssl
-    [[ $CODENAME == stretch ]] && apt-get install -y libssl1.0-dev # https://tieba.baidu.com/p/5532509017?pn=2#117594043156l
-
-    cd /etc/inexistence/00.Installation/MAKE
-    wget -O release-2.1.8-stable.tar.gz https://github.com/libevent/libevent/archive/release-2.1.8-stable.tar.gz
-    tar xf release-2.1.8-stable.tar.gz ; rm -rf release-2.1.8-stable.tar.gz
-    mv libevent-release-2.1.8-stable libevent-2.1.8
-    cd libevent-2.1.8
-    ./autogen.sh
-    ./configure
-    make -j$MAXCPUS
-
-    checkinstall -y --pkgversion=2.1.8 --pkgname=libevent --pkggroup libevent # make install
-    ldconfig                                                                  # ln -s /usr/local/lib/libevent-2.1.so.6 /usr/lib/libevent-2.1.so.6
-    cd ..
+    #cd /etc/inexistence/00.Installation/MAKE
+    #wget -O release-2.1.8-stable.tar.gz https://github.com/libevent/libevent/archive/release-2.1.8-stable.tar.gz
+    #tar xf release-2.1.8-stable.tar.gz ; rm -rf release-2.1.8-stable.tar.gz
+    #mv libevent-release-2.1.8-stable libevent-2.1.8
+    #cd libevent-2.1.8
+    #./autogen.sh
+    #./configure
+    #make -j$MAXCPUS
+    #ldconfig                                                                  # ln -s /usr/local/lib/libevent-2.1.so.6 /usr/lib/libevent-2.1.so.6
+    #cd ..
 
     if [[ $TRdefault == No ]]; then
-        wget -O transmission-$tr_version.tar.gz https://github.com/Aniverse/BitTorrentClientCollection/raw/master/TransmissionMod/transmission-$tr_version.tar.gz
-        tar xf transmission-$tr_version.tar.gz ; rm -f transmission-$tr_version.tar.gz
+        wget -qO transmission-$tr_version.tar.xz https://github.com/transmission/transmission-releases/raw/master/transmission-$tr_version.tar.xz
+        tar xf transmission-$tr_version.tar.xz ; rm -f transmission-$tr_version.tar.xz
         cd transmission-$tr_version
+        VerifyFILE=libtransmission/verify.c
+        sed -i '388a\  skiphash();' libtransmission/rpcimpl.c
+        sed -i 's/filePos == 0/!skiphashcheck \&\& filePos == 0/' $VerifyFILE
+        sed -i 's/tr_sys_file_read_at/!skiphashcheck \&\& tr_sys_file_read_at/' $VerifyFILE
+        sed -i 's/!memcmp/skiphashcheck || !memcmp/' $VerifyFILE
+        sed -i '162a\   if(skiphashcheck){ skiphashcheck=false; tr_logAddTorInfo (tor, "%s", _("skip hash check")); }' $VerifyFILE
+        sed -i '41a\static bool skiphashcheck=false;' $VerifyFILE
+        sed -i '42a\void skiphash(){ skiphashcheck=true; }' $VerifyFILE
     else
-        git clone https://github.com/transmission/transmission transmission-$tr_version
+        wget -qO transmission-$tr_version.tar.xz https://github.com/transmission/transmission-releases/raw/master/transmission-$tr_version.tar.xz
+        tar xf transmission-$tr_version.tar.xz ; rm -f transmission-$tr_version.tar.xz
         cd transmission-$tr_version
-        git checkout $tr_version
-        # 修复 Transmission 2.92 无法在 Ubuntu 18.04 下编译的问题（openssl 1.1.0），https://github.com/transmission/transmission/pull/24
-        [[ $tr_version == 2.92 ]] && { git config --global user.email "you@example.com" ; git config --global user.name "Your Name" ; git cherry-pick eb8f500 -m 1 ; }
-        # 修复 2.93 以前的版本可能无法过 configure 的问题，https://github.com/transmission/transmission/pull/215
-        [[ ! `grep m4_copy_force m4/glib-gettext.m4 ` ]] && sed -i "s/m4_copy/m4_copy_force/g" m4/glib-gettext.m4
-        # 解决 Transmission 2.9X 版本文件打开数被限制到 1024 的问题，https://github.com/transmission/transmission/issues/309
-        # [[ `grep FD_SETSIZE=1024 CMakeLists.txt ` ]] && sed -i "s/FD_SETSIZE=1024/FD_SETSIZE=777777/g" CMakeLists.txt
-        # 经测试发现没啥卵用，还是不改了 ……
     fi
 
-    ./autogen.sh
-    ./configure --prefix=/usr
-
-    make -j$MAXCPUS
-
-    if [[ $tr_installed == Yes ]]; then
-        make install
-    else
-        checkinstall -y --pkgversion=$tr_version --pkgname=transmission-seedbox --pkggroup transmission
-        mv -f tr*deb /etc/inexistence/01.Log/INSTALLATION/packages
-    fi
-
+    ./configure --enable-cli --prefix=/usr >> $OutputLOG 2>&1
+    make -j$MAXCPUS >> $OutputLOG 2>&1
+    make install >> $OutputLOG 2>&1
+    
 fi
-
-cd ; echo -e "\n\n\n\n${baizise}  TR-INSTALLATION-COMPLETED  ${normal}\n\n\n" ; }
-
-
-
-
+    if [[ ` transmission-daemon --help 2>&1 | head -n1 | awk '{print $2}' ` == $tr_version ]]; then
+    touch /tmp/$Installation_status_prefix.installtr.1.lock
+    else
+    touch /tmp/$Installation_status_prefix.installtr.2.lock
+    fi
+}
 
 # --------------------- 配置 Transmission --------------------- #
 
 function _settr() {
-
-echo 1 | bash -c "$(wget -qO- https://github.com/ronggang/transmission-web-control/raw/master/release/install-tr-control.sh)"
-
-# [[ -d /home/${ANUSER}/.config/transmission-daemon ]] && rm -rf /home/${ANUSER}/.config/transmission-daemon.old && mv /home/${ANUSER}/.config/transmission-daemon /home/${ANUSER}/.config/transmission-daemon.old
-[[ -d /root/.config/transmission-daemon ]] && rm -rf /root/.config/transmission-daemon.old && mv /root/.config/transmission-daemon /root/.config/transmission-daemon.old
-
-mkdir -p /home/${ANUSER}/transmission/{download,torrent,watch} /var/www /root/.config/transmission-daemon  #/home/${ANUSER}/.config/transmission-daemon
-chmod -R 777 /home/${ANUSER}/transmission  #/home/${ANUSER}/.config/transmission-daemon
-chown -R ${ANUSER}:${ANUSER} /home/${ANUSER}/transmission  #/home/${ANUSER}/.config/transmission-daemon
-rm -rf /var/www/h5ai/transmission
-ln -s /home/${ANUSER}/transmission/download /var/www/h5ai/transmission
-# chown -R www-data:www-data /var/www/h5ai
-
-cp -f /etc/inexistence/00.Installation/template/config/transmission.settings.json /root/.config/transmission-daemon/settings.json  #/home/${ANUSER}/.config/transmission-daemon/settings.json
-cp -f /etc/inexistence/00.Installation/template/systemd/transmission.service /etc/systemd/system/transmission.service
-# cp -f /etc/inexistence/00.Installation/template/systemd/transmission@.service /etc/systemd/system/transmission@.service
-[[ `command -v transmission-daemon` == /usr/local/bin/transmission-daemon ]] && sed -i "s/usr/usr\/local/g" /etc/systemd/system/transmission.service
-
-sed -i "s/RPCUSERNAME/${ANUSER}/g" /root/.config/transmission-daemon/settings.json  #/home/${ANUSER}/.config/transmission-daemon/settings.json
-sed -i "s/RPCPASSWORD/${ANPASS}/g" /root/.config/transmission-daemon/settings.json  #/home/${ANUSER}/.config/transmission-daemon/settings.json
-
-systemctl daemon-reload
-systemctl enable transmission
-systemctl start transmission
-# systemctl enable transmission@${ANUSER}
-# systemctl start transmission@${ANUSER}
-
-touch /etc/inexistence/01.Log/lock/transmission.lock ; }
-
-
-
-
+    echo 1 | bash -c "$(wget -qO- https://github.com/ronggang/transmission-web-control/raw/master/release/install-tr-control.sh)"
+    
+    # [[ -d /home/${ANUSER}/.config/transmission-daemon ]] && rm -rf /home/${ANUSER}/.config/transmission-daemon.old && mv /home/${ANUSER}/.config/transmission-daemon /home/${ANUSER}/.config/transmission-daemon.old
+    [[ -d /root/.config/transmission-daemon ]] && rm -rf /root/.config/transmission-daemon.old && mv /root/.config/transmission-daemon /root/.config/transmission-daemon.old
+    
+    mkdir -p /home/${ANUSER}/transmission/{download,torrent,watch} /var/www /root/.config/transmission-daemon  #/home/${ANUSER}/.config/transmission-daemon
+    chmod -R 777 /home/${ANUSER}/transmission  #/home/${ANUSER}/.config/transmission-daemon
+    chown -R ${ANUSER}:${ANUSER} /home/${ANUSER}/transmission  #/home/${ANUSER}/.config/transmission-daemon
+    rm -rf /var/www/h5ai/transmission
+    ln -s /home/${ANUSER}/transmission/download /var/www/h5ai/transmission
+    # chown -R www-data:www-data /var/www/h5ai
+    
+    cp -f /etc/inexistence/00.Installation/template/config/transmission.settings.json /root/.config/transmission-daemon/settings.json  #/home/${ANUSER}/.config/transmission-daemon/settings.json
+    cp -f /etc/inexistence/00.Installation/template/systemd/transmission.service /etc/systemd/system/transmission.service
+    # cp -f /etc/inexistence/00.Installation/template/systemd/transmission@.service /etc/systemd/system/transmission@.service
+    [[ `command -v transmission-daemon` == /usr/local/bin/transmission-daemon ]] && sed -i "s/usr/usr\/local/g" /etc/systemd/system/transmission.service
+    
+    sed -i "s/RPCUSERNAME/${ANUSER}/g" /root/.config/transmission-daemon/settings.json  #/home/${ANUSER}/.config/transmission-daemon/settings.json
+    sed -i "s/RPCPASSWORD/${ANPASS}/g" /root/.config/transmission-daemon/settings.json  #/home/${ANUSER}/.config/transmission-daemon/settings.json
+    
+    systemctl daemon-reload
+    systemctl enable transmission
+    systemctl start transmission
+    # systemctl enable transmission@${ANUSER}
+    # systemctl start transmission@${ANUSER}
+    
+    touch /etc/inexistence/01.Log/lock/transmission.lock 
+}
 
 # --------------------- 安装、配置 Flexget --------------------- #
 
@@ -2161,44 +2055,31 @@ touch /etc/inexistence/01.Log/lock/rclone.lock
 echo -e "\n\n\n${bailvse}  RCLONE-INSTALLATION-COMPLETED  ${normal}\n\n" ; }
 
 
-
-
-
-
 # --------------------- 安装 BBR --------------------- #
-
 function _install_bbr() {
 if [[ $bbrinuse == Yes ]]; then
     sleep 0
 elif [[ $bbrkernel == Yes && $bbrinuse == No ]]; then
-    _enable_bbr
+    echo -ne "Configuring BBR ..." | tee -a $OutputLOG
+    _enable_bbr & spinner $!
+    _check_status confbbr
 else
-    _bbr_kernel_4_11_12
-    _enable_bbr
+    echo -ne "Installation BBR ..." | tee -a $OutputLOG
+    _bbr_kernel & spinner $!
+    _check_status bbr
+
+    echo -ne "Configuring BBR ..." | tee -a $OutputLOG
+    _enable_bbr & spinner $!
+    _check_status confbbr
 fi
-echo -e "\n\n${bailvse}  BBR-INSTALLATION-COMPLETED  ${normal}\n" ; }
+}
 
-# 安装 4.11.12 的内核
-function _bbr_kernel_4_11_12() {
-
-if [[ $CODENAME == stretch ]]; then
-    [[ ! `dpkg -l | grep libssl1.0.0` ]] && { echo -ne "\n  {bold}Installing libssl1.0.0 ...${normal} "
-    echo -e "\ndeb http://ftp.hk.debian.org/debian jessie main\c" >> /etc/apt/sources.list
-    apt-get update
-    apt-get install -y libssl1.0.0
-    sed  -i '/deb http:\/\/ftp\.hk\.debian\.org\/debian jessie main/d' /etc/apt/sources.list
-    apt-get update ; }
-else
-    [[ ! `dpkg -l | grep libssl1.0.0` ]] && { echo -ne "\n  ${bold}Installing libssl1.0.0 ...${normal} "  ; apt-get install -y libssl1.0.0 ; }
-fi
-
-wget -qO 1.deb https://github.com/Aniverse/BitTorrentClientCollection/raw/master/Linux%20Kernel/BBR/linux-headers-4.11.12-all.deb
-wget -qO 2.deb https://github.com/Aniverse/BitTorrentClientCollection/raw/master/Linux%20Kernel/BBR/linux-headers-4.11.12-amd64.deb
-wget -qO 3.deb https://github.com/Aniverse/BitTorrentClientCollection/raw/master/Linux%20Kernel/BBR/linux-image-4.11.12-generic-amd64.deb
-dpkg -i [123].deb
-rm -rf [123].deb
-update-grub ; }
-
+# 安装最新的内核
+function _bbr_kernel() {
+    touch /tmp/$Installation_status_prefix.bbr.1.lock || {
+        yum --enablerepo=elrepo-kernel install -y kernel-ml kernel-ml-devel kernel-ml-headers kernel-ml-tools-libs-devel >> $OutputLOG 2>&1 && touch /tmp/$Installation_status_prefix.bbr.1.lock || touch /tmp/$Installation_status_prefix.bbr.2.lock ; }
+    grub2-set-default 0
+}
 
 # 开启 BBR
 function _enable_bbr() {
@@ -2207,9 +2088,41 @@ sed -i '/net.core.default_qdisc.*/d' /etc/sysctl.conf
 sed -i '/net.ipv4.tcp_congestion_control.*/d' /etc/sysctl.conf
 echo "net.core.default_qdisc = fq" >> /etc/sysctl.conf
 echo "net.ipv4.tcp_congestion_control = $bbrname" >> /etc/sysctl.conf
-sysctl -p
-touch /etc/inexistence/01.Log/lock/bbr.lock ; }
+sysctl -p 
+if [[ ` sysctl net.ipv4.tcp_available_congestion_control | grep -c bbr ` == 1 ]]; then
+touch /tmp/$Installation_status_prefix.confbbr.1.lock
+else
+touch /tmp/$Installation_status_prefix.confbbr.2.lock
+fi
+}
 
+# --------------------- 安装 TCPA --------------------- #
+function _install_tcpa() {
+if [[ $bbrinuse == Yes ]]; then
+    sleep 0
+elif [[ $bbrkernel == Yes && $bbrinuse == No ]]; then
+    _enable_tcpa
+else
+    _tcpa_kernel
+    _enable_tcpa
+fi
+echo -e "\n\n${bailvse}  BBR-INSTALLATION-COMPLETED  ${normal}\n" ; }
+
+# 安装 TCPA 的内核
+function _tcpa_kernel() {
+    yum --enablerepo=elrepo-kernel install kernel-ml -y
+    grub2-set-default 0
+}
+
+# 开启 TCPA
+function _enable_tcpa() {
+bbrname=bbr
+sed -i '/net.core.default_qdisc.*/d' /etc/sysctl.conf
+sed -i '/net.ipv4.tcp_congestion_control.*/d' /etc/sysctl.conf
+echo "net.core.default_qdisc = fq" >> /etc/sysctl.conf
+echo "net.ipv4.tcp_congestion_control = $bbrname" >> /etc/sysctl.conf
+sysctl -p
+}
 # --------------------- 一些设置修改 --------------------- #
 function _tweaks() {
 
@@ -2365,8 +2278,6 @@ alias quanxian="chmod -R 777"
 alias anzhuang="apt-get install"
 alias yongyouzhe="chown ${ANUSER}:${ANUSER}"
 
-alias banben1='apt-cache policy'
-alias banben2='dpkg -l | grep'
 alias scrl="screen -ls"
 alias scrgd="screen -U -R GoogleDrive"
 alias scrgdb="screen -S GoogleDrive -X quit"
@@ -2384,14 +2295,11 @@ alias vnss="vnstat -m && vnstat -d"
 
 alias sousuo="find / -name"
 alias sousuo2="find /home/${ANUSER} -name"
-alias enableswap="dd if=/dev/zero of=/root/.swapfile bs=1M count=1024;mkswap /root/.swapfile;swapon /root/.swapfile;swapon -s"
-alias disableswap="swapoff /root/.swapfile;rm -f /.swapfile"
 
 alias yuan="nano /etc/apt/sources.list"
 alias cronr="/etc/init.d/cron restart"
 alias sshr="sed -i '/.*AllowGroups.*/d' /etc/ssh/sshd_config ; sed -i '/.*PasswordAuthentication.*/d' /etc/ssh/sshd_config ; sed -i '/.*PermitRootLogin.*/d' /etc/ssh/sshd_config ; echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config ; /etc/init.d/ssh restart  >/dev/null 2>&1 && echo -e '\n已开启 root 登陆\n'"
 
-alias jiaobenxuanxiang="clear && cat /etc/inexistence/01.Log/installed.log && echo"
 alias jiaobende="clear && cat /etc/inexistence/01.Log/INSTALLATION/03.de1.log && echo"
 alias jiaobenqb="clear && cat /etc/inexistence/01.Log/INSTALLATION/05.qb1.log && echo"
 alias jiaobenrt1="clear && cat /etc/inexistence/01.Log/INSTALLATION/07.rt.log && echo"
@@ -2567,9 +2475,6 @@ echo -ne "${normal}"
 echo ; }
 
 
-
-
-
 # --------------------- 结构 --------------------- #
 
 _intro
@@ -2596,85 +2501,83 @@ else
 fi
 
 _asktweaks
-_askcontinue | tee /etc/00.info.log
+_askcontinue
 
 starttime=$(date +%s)
 
-_setsources 2>&1 | tee /etc/00.setsources.log
-_setuser 2>&1 | tee /etc/01.setuser.log
-
-mv /etc/00.info.log /etc/inexistence/01.Log/INSTALLATION/00.info.log
-mv /etc/00.setsources.log /etc/inexistence/01.Log/INSTALLATION/00.setsources.log
-mv /etc/01.setuser.log /etc/inexistence/01.Log/INSTALLATION/01.setuser.log
-
+_setsources
+_setuser
 # --------------------- 安装 --------------------- #
-
 _env_install
 _Disable_SELinux
-
 if   [[ $InsBBR == Yes ]] || [[ $InsBBR == To\ be\ enabled ]]; then
-     echo -ne "Configuring BBR ... \n\n\n" ; _install_bbr 2>&1 | tee /etc/inexistence/01.Log/INSTALLATION/02.bbr.log
+     _install_bbr
 else
-     echo -e  "Skip BBR installation\n\n\n\n\n"
+     echo -e  "BBR installation ... ${yellow}${bold}Skip${normal}"
 fi
 
-
-# [[ -f $LOCKLocation/libtorrent-rasterbar.lock ]]
-[[ ! -z $lt_version ]] && [[ ! $lt_version == system ]] && _install_lt
+[[ ! -z $lt_version ]] && _install_lt
 
 
 if  [[ $qb_version == No ]]; then
-    echo -e  "Skip qBittorrent installation\n\n\n\n"
+    echo -e  "qBittorrent installation ... ${yellow}${bold}Skip${normal}"
 else
-    echo -ne "Installing qBittorrent ... \n\n\n" ; _installqbt 2>&1 | tee /etc/inexistence/01.Log/INSTALLATION/05.qb1.log
-    echo -ne "Configuring qBittorrent ... \n\n\n" ; _setqbt 2>&1 | tee /etc/inexistence/01.Log/INSTALLATION/06.qb2.log
+    echo -ne "Installing qBittorrent ... \n\n" ; _installqbt
+    echo -ne "Configuring qBittorrent ... \n\n" ; _setqbt
 fi
 
 
 if  [[ $de_version == No ]]; then
-    echo -e  "Skip Deluge installation \n\n\n\n"
+    echo -e  "Deluge installation ... ${yellow}${bold}Skip${normal}"
 else
-    echo -ne "Installing Deluge ... \n\n\n" ; _installde 2>&1 | tee /etc/inexistence/01.Log/INSTALLATION/03.de1.log
-    echo -ne "Configuring Deluge ... \n\n\n" ; _setde 2>&1 | tee /etc/inexistence/01.Log/INSTALLATION/04.de2.log
+    echo -ne "Installing Deluge ... " | tee -a $OutputLOG
+    _installde & spinner $!
+    _check_status installde
+    echo -ne "Configuring Deluge ... "  | tee -a $OutputLOG
+    _setde >> $OutputLOG 2>&1 && spinner $!
+    _check_status Confde
 fi
 
 
 if  [[ $rt_version == No ]]; then
-    echo -e  "Skip rTorrent installation\n\n\n"
+    echo -e  "rTorrent installation ... ${yellow}${bold}Skip${normal}"
 else
-    echo -ne "Installing rTorrent ... \n\n\n" ; _installrt 2>&1 | tee /etc/inexistence/01.Log/INSTALLATION/07.rt.log
-    [[ $InsFlood == Yes ]] && { echo -ne "Installing Flood ... \n\n\n" ; _installflood 2>&1 | tee /etc/inexistence/01.Log/INSTALLATION/07.flood.log ; }
+    echo -ne "Installing rTorrent ... \n\n" ; _installrt
+    [[ $InsFlood == Yes ]] && { echo -ne "Installing Flood ... \n\n\n" ; _installflood; }
 fi
 
 
 if  [[ $tr_version == No ]]; then
-    echo -e  "Skip Transmission installation\n\n\n\n"
+    echo -e  "Transmission installation ... ${yellow}${bold}Skip${normal}"
 else
-    echo -ne "Installing Transmission ... \n\n\n" ; _installtr 2>&1 | tee /etc/inexistence/01.Log/INSTALLATION/08.tr1.log
-    echo -ne "Configuring Transmission ... \n\n\n" ; _settr 2>&1 | tee /etc/inexistence/01.Log/INSTALLATION/09.tr2.log
+    echo -ne "Installing Transmission ... " | tee -a $OutputLOG
+    _installtr & spinner $!
+    _check_status installtr
+    echo -ne "Configuring Transmission ... " | tee -a $OutputLOG
+    _settr & spinner $!
+    _check_status settr
 fi
 
 
 if  [[ $InsFlex == Yes ]]; then
-    echo -ne "Installing Flexget ... \n\n\n" ; _installflex 2>&1 | tee /etc/inexistence/01.Log/INSTALLATION/10.flexget.log
+    echo -ne "Installing Flexget ... \n\n" ; _installflex
 else
-    echo -e  "Skip Flexget installation\n\n\n\n"
+    echo -e  "Flexget installation ... ${yellow}${bold}Skip${normal}"
 fi
 
 
 if  [[ $InsRclone == Yes ]]; then
-    echo -ne "Installing rclone ... " ; _installrclone 2>&1 | tee /etc/inexistence/01.Log/INSTALLATION/11.rclone.log
+    echo -ne "Installing rclone ... " ; _installrclone
 else
-    echo -e  "Skip rclone installation\n\n\n\n"
+    echo -e  "rclone installation ... ${yellow}${bold}Skip${normal}"
 fi
 
 ####################################
 
-
 if [[ $UseTweaks == Yes ]]; then
-    echo -ne "Configuring system settings ... \n\n\n" ; _tweaks
+    echo -ne "Configuring system settings ... \n\n" ; _tweaks
 else
-    echo -e  "Skip System tweaks\n\n\n\n"
+    echo -e  "System tweaks ... ${yellow}${bold}Skip${normal}"
 fi
 
 
