@@ -178,6 +178,7 @@ function _string() { perl -le 'print map {(a..z,A..Z,0..9)[rand 62] } 0..pop' 15
 function _Disable_SELinux() {
 sed -i '/SELINUX/s/enforcing/disabled/' /etc/selinux/config
 setenforce 0
+echo -e "Disable SELinux ... ${green}${bold}DONE${normal}"
 }
 
 # 安装基础软件 最小化安装
@@ -207,6 +208,8 @@ systemctl stop postfix
 systemctl disable postfix >> $OutputLOG 2>&1
 systemctl stop firewalld
 systemctl disable firewalld >> $OutputLOG 2>&1
+
+touch /tmp/$Installation_status_prefix.env_install.1.lock
 }
 
 
@@ -813,26 +816,25 @@ fi
 
 echo ; }
 
-# 2018.04.26 禁用这个问题，统一使用 1.0.11
-# 2018.11.15 随着 RC_1_1 分支的进步，准备重新启用
-# 2018.11.15 不确定 apt 源里的版本是否会冲突，保险起见自己编译一次，因此移除了 repo 的选项
-# 2018.11.15 qb 开发者打算要求使用 C++14 了的样子，不知道这对于同时使用 Deluge 的用户是否有影响
+# libtorrent 1.0.11: 適用於qBittorrent4.0.0-4.1.3
+# libtorrent 1.1.12: 適用於qBittorrent4.0.0或更新版本
+# libtorrent 1.2.0 : qBittorrent暫未支援lt1.2系列
+# qBittorrent4.1.4需要C++14進行編譯
+# CentOS7自帶的GCC4.8.5只支援到C++11，所以稍後會透過SCL安裝GCC8.2 (支援C++14)
 # --------------------- 询问需要安装的 libtorrent-rasterbar 版本 --------------------- #
-# lt_version=$(  wget -qO- "https://github.com/arvidn/libtorrent" | grep "data-name" | cut -d '"' -f2 | grep "libtorrent-1_1_" | sort -t _ -n -k 3 | tail -n1  )
-
 function _lt_ver_ask() {
 
-[[ $DeBUG == 1 ]] && echo "lt_version=$lt_version  lt_ver=$lt_ver  lt8_support=$lt8_support  qb_version=$qb_version  de_version=$de_version"
+  [[ $DeBUG == 1 ]] && echo "lt_version=$lt_version  lt_ver=$lt_ver  lt8_support=$lt8_support  qb_version=$qb_version  de_version=$de_version"
 
-# 默认 lt 1.0 可用
-lt8_support=Yes
-# 当要安装 Deluge 2.0 或 qBittorrent 4.2.0(stable release) 时，lt 版本至少要 1.1.3；如果原先装了 1.0，那么这里必须升级到 1.1 或者 1.2
-# 2019.01.30 这里不去掉 unset lt_version 就容易导致 opt 失效
-[[ $Deluge_2_later == Yes || $qBittorrent_4_2_0_later == Yes ]] && lt8_support=No
+  # 默认 lt 1.0 可用
+  lt8_support=Yes
+  # 当要安装 Deluge 2.0 或 qBittorrent 4.2.0(stable release) 时，lt 版本至少要 1.1.3；如果原先装了 1.0，那么这里必须升级到 1.1 或者 1.2
+  # 2019.01.30 这里不去掉 unset lt_version 就容易导致 opt 失效
+  [[ $Deluge_2_later == Yes || $qBittorrent_4_2_0_later == Yes ]] && lt8_support=No
 
-[[ $DeBUG == 1 ]] && {
-echo "Deluge_2_later=$Deluge_2_later   qBittorrent_4_2_0_later=$qBittorrent_4_2_0_later"
-echo "lt_ver=$lt_ver  lt8_support=$lt8_support  lt_ver_qb3_ok=$lt_ver_qb3_ok  lt_ver_de2_ok=$lt_ver_de2_ok" ; }
+  [[ $DeBUG == 1 ]] && {
+  echo "Deluge_2_later=$Deluge_2_later   qBittorrent_4_2_0_later=$qBittorrent_4_2_0_later"
+  echo "lt_ver=$lt_ver  lt8_support=$lt8_support  lt_ver_qb3_ok=$lt_ver_qb3_ok  lt_ver_de2_ok=$lt_ver_de2_ok" ; }
 
 while [[ $lt_version = "" ]]; do
 
@@ -854,9 +856,8 @@ while [[ $lt_version = "" ]]; do
                           02 | 2) lt_version=RC_1_1 ;;
                           03 | 3) lt_version=RC_1_2 ;;
                           30    ) _input_version_lt && lt_version="${input_version_num}" ;;
-                          98    ) lt_version=system ;;
-                          99    ) lt_version=system ;;
-                          ""    ) lt_version=system ;;
+                          99    ) lt_version=No ;;
+                          ""    ) lt_version=No ;;
                           *     ) echo -e "\n${CW} Please input a valid opinion${normal}\n" ;;
                     esac
             done
@@ -870,7 +871,6 @@ while [[ $lt_version = "" ]]; do
                           02 | 2) lt_version=RC_1_1 ;;
                           03 | 3) lt_version=RC_1_2 ;;
                           30    ) _input_version_lt && lt_version="${input_version_num}" ;;
-                          98    ) lt_version=system ;;
                           99    ) echo -e "\n${CW} qBittorrent 3.3 and later requires libtorrent-rasterbar 1.0.6 and later${normal}\n" ;;
                           ""    ) lt_version=RC_1_0 ;;
                           *     ) echo -e "\n${CW} Please input a valid opinion${normal}\n" ;;
@@ -887,9 +887,8 @@ while [[ $lt_version = "" ]]; do
                           02 | 2) lt_version=RC_1_1 ;;
                           03 | 3) lt_version=RC_1_2 ;;
                           30    ) _input_version_lt && lt_version="${input_version_num}" ;;
-                          98    ) lt_version=system ;;
-                          99    ) lt_version=system ;;
-                          ""    ) lt_version=system ;;
+                          99    ) lt_version=No ;;
+                          ""    ) lt_version=No ;;
                           *     ) echo -e "\n${CW} Please input a valid opinion${normal}\n" ;;
                     esac
             done
@@ -903,7 +902,6 @@ while [[ $lt_version = "" ]]; do
                           02 | 2) lt_version=RC_1_1 ;;
                           03 | 3) lt_version=RC_1_2 ;;
                           30    ) _input_version_lt && lt_version="${input_version_num}" ;;
-                          98    ) lt_version=system ;;
                           99    ) echo -e "\n${CW} Deluge 2.0 or qBittorrent 4.2.0 requires libtorrent-rasterbar 1.1.3 or later${normal}\n" ;;
                           ""    ) lt_version=RC_1_1 ;;
                           *     ) echo -e "\n${CW} Please input a valid opinion${normal}\n" ;;
@@ -913,15 +911,14 @@ while [[ $lt_version = "" ]]; do
     # 未安装 libtorrent-rasterbar 且不使用 Deluge 2.0 或者 qBittorrent 4.2.0
     elif [[ ! $lt_ver ]] && [[ $lt8_support == Yes ]]; then
             while [[ $lt_version == "" ]]; do
-                    read -ep "${bold}${yellow}$which_version_do_you_want${normal} (Default ${cyan}01${normal}): " version
+                    read -ep "${bold}${yellow}$which_version_do_you_want${normal} (Default ${cyan}02${normal}): " version
                     case $version in
                           01 | 1) lt_version=RC_1_0 ;;
                           02 | 2) lt_version=RC_1_1 ;;
                           03 | 3) lt_version=RC_1_2 ;;
                           30    ) _input_version_lt && lt_version="${input_version_num}" ;;
-                          98    ) lt_version=system ;;
                           99    ) echo -e "\n${CW} libtorrent-rasterbar is a must for Deluge or qBittorrent, so you have to install it${normal}\n" ;;
-                          ""    ) lt_version=RC_1_0 ;;
+                          ""    ) lt_version=RC_1_1 ;;
                           *     ) echo -e "\n${CW} Please input a valid opinion${normal}\n" ;;
                     esac
             done
@@ -935,7 +932,6 @@ while [[ $lt_version = "" ]]; do
                           02 | 2) lt_version=RC_1_1 ;;
                           03 | 3) lt_version=RC_1_2 ;;
                           30    ) _input_version_lt && lt_version="${input_version_num}" ;;
-                          98    ) lt_version=system ;;
                           99    ) echo -e "\n${CW} libtorrent-rasterbar is a must for Deluge or qBittorrent, so you have to install it${normal}\n" ;;
                           ""    ) lt_version=RC_1_1 ;;
                           *     ) echo -e "\n${CW} Please input a valid opinion${normal}\n" ;;
@@ -953,9 +949,6 @@ while [[ $lt_version = "" ]]; do
                           02 | 2) lt_version=RC_1_1 ;;
                           03 | 3) lt_version=RC_1_2 ;;
                           30    ) _input_version_lt && lt_version="${input_version_num}" ;;
-                          98    ) lt_version=system ;;
-                          99    ) lt_version=system ;;
-                          ""    ) lt_version=system ;;
                           *     ) echo -e "\n${CW} Please input a valid opinion${normal}\n" ;;
                     esac
             done
@@ -964,24 +957,18 @@ while [[ $lt_version = "" ]]; do
 
 done
 
-lt_display_ver=$( echo "$lt_version" | sed "s/_/\./g" | sed "s/libtorrent-//" )
-[[ $lt_version == RC_1_0  ]] && lt_display_ver=1.0.11
-[[ $lt_version == RC_1_1  ]] && lt_display_ver=1.1.12
-[[ $lt_version == RC_1_2  ]] && lt_display_ver=1.2.0
-[[ $lt_version == master  ]] && lt_display_ver=1.2.0
-# 检测版本号速度慢了点，所以还是手动指定
-#[[ $lt_version == RC_1_0  ]] && lt_display_ver=$( wget -qO- "https://github.com/arvidn/libtorrent" | grep "data-name" | cut -d '"' -f2 | grep "libtorrent-1_0_" | sort -t _ -n -k 3 | tail -n1 | sed "s/_/\./g" | sed "s/libtorrent-//" )
-#[[ $lt_version == RC_1_1  ]] && lt_display_ver=$( wget -qO- "https://github.com/arvidn/libtorrent" | grep "data-name" | cut -d '"' -f2 | grep "libtorrent-1_1_" | sort -t _ -n -k 3 | tail -n1 | sed "s/_/\./g" | sed "s/libtorrent-//" )
-
-    if [[ $lt_version == system ]]; then
-
-        echo "${baiqingse}${bold}libtorrent-rasterbar $lt_ver${jiacu} will be used from system${normal}"
-
-    else
-
-        echo "${baiqingse}${bold}libtorrent-rasterbar ${lt_display_ver}${normal} ${bold}$lang_will_be_installed${normal}"
-
-    fi
+  lt_display_ver=$( echo "$lt_version" | sed "s/_/\./g" | sed "s/libtorrent-//" )
+  [[ $lt_version == RC_1_0  ]] && lt_display_ver=1.0.11
+  [[ $lt_version == RC_1_1  ]] && lt_display_ver=1.1.12
+  [[ $lt_version == RC_1_2  ]] && lt_display_ver=1.2.0
+  [[ $lt_version == master  ]] && lt_display_ver=1.2.0
+  # 检测版本号速度慢了点，所以还是手动指定
+  if [[ $lt_version != No ]]; then
+    echo "${baiqingse}${bold}libtorrent-rasterbar ${lt_display_ver}${normal} ${bold}$lang_will_be_installed${normal}"
+  else
+    unset lt_version
+    echo "${baizise}libtorrent-rasterbar will ${baihongse}not${baizise} be installed${normal}"
+  fi
 
 [[ $DeBUG == 1 ]] && {
 echo "Deluge_2_later=$Deluge_2_later   qBittorrent_4_2_0_later=$qBittorrent_4_2_0_later
@@ -1120,7 +1107,6 @@ function _asktr() {
 
 while [[ $tr_version = "" ]]; do
 
-    [[ ! $CODENAME == bionic ]] &&
     echo -e "${green}01)${normal} Transmission ${cyan}2.77${normal}" &&
     echo -e "${green}02)${normal} Transmission ${cyan}2.82${normal}" &&
     echo -e "${green}03)${normal} Transmission ${cyan}2.84${normal}" &&
@@ -1395,34 +1381,27 @@ echo -e "${bold}${magenta}1 - 100 minutes depending on your systems specs and yo
 function _setsources() {
 
 [[ $USESWAP == Yes ]] && { 
-    echo -ne "Enable Swap space ..."
-    _use_swap & spinner $!
-    _check_status SwapON ; }
+  echo -ne "Enable Swap space ..."
+  _use_swap & spinner $!
+  _check_status SwapON ; }
 #if [[ $aptsources == Yes ]]; then
 #    cp /etc/apt/sources.list /etc/apt/sources.list."$(date "+%Y%m%d.%H%M")".bak
 #else
 #    apt-get -y update
 #fi
 
-echo -e "Replace system source ... ${green}${bold}DONE${normal}" ; }
+  echo -e "Replace system source ... ${green}${bold}DONE${normal}"
+}
 # --------------------- 创建用户、准备工作 --------------------- #
 function _setuser() {
-[[ -d /etc/inexistence ]] && rm -rf /etc/inexistence
-git clone --depth=1 https://github.com/Aniverse/inexistence /etc/inexistence >> $OutputLOG 2>&1
-mkdir -p $SCLocation $LOCKLocation
-mkdir -p /etc/inexistence/01.Log/INSTALLATION/packages /etc/inexistence/00.Installation/MAKE
-chmod -R 777 /etc/inexistence
-
-if id -u ${ANUSER} >/dev/null 2>&1; then
+  if id -u ${ANUSER} >/dev/null 2>&1; then
     echo "${ANUSER}:${ANPASS}" | chpasswd
     echo -e "${cyan}${ANUSER}${normal} already exists, Change Password ... ${green}${bold}DONE${normal}"
-else
+  else
     adduser ${ANUSER} -m >> $OutputLOG 2>&1
     echo "${ANUSER}:${ANPASS}" | chpasswd
     echo -e "Adduser ${cyan}${ANUSER}${normal} ... ${green}${bold}DONE${normal}"
-fi
-
-export TZ="/usr/share/zoneinfo/Asia/Shanghai"
+  fi
 
 cat>>/etc/inexistence/01.Log/installed.log<<EOF
 如果要截图请截完整点，包含下面所有信息
@@ -1430,7 +1409,7 @@ CPU        : $cname"
 Cores      : ${freq} MHz, ${cpucores} Core(s), ${cputhreads} Thread(s)"
 Mem        : $tram MB ($uram MB Used)"
 Disk       : $disk_total_size GB ($disk_used_size GB Used)
-OS         : $DISTRO $osversion $CODENAME ($arch)
+OS         : $DISTRO $osversion ($arch)
 Kernel     : $kern
 ASN & ISP  : $asnnnnn, $isppppp
 Location   : $cityyyy, $regionn, $country
@@ -1456,16 +1435,23 @@ FLOOD=${InsFlood}
 #################################
 如果要截图请截完整点，包含上面所有信息
 EOF
+  echo -ne "Copy file ... "
+  [[ -d /etc/inexistence ]] && rm -rf /etc/inexistence
+  git clone --depth=1 https://github.com/Aniverse/inexistence /etc/inexistence >> $OutputLOG 2>&1
+  mkdir -p $SCLocation $LOCKLocation
+  mkdir -p /etc/inexistence/01.Log/INSTALLATION/packages /etc/inexistence/00.Installation/MAKE
+  chmod -R 777 /etc/inexistence
+  
+  # 脚本设置
+  mkdir -p /etc/inexistence/00.Installation
+  mkdir -p /etc/inexistence/01.Log
+  mkdir -p /etc/inexistence/03.Files
+  mkdir -p /var/www/h5ai
 
-# 脚本设置
-mkdir -p /etc/inexistence/00.Installation
-mkdir -p /etc/inexistence/01.Log
-mkdir -p /etc/inexistence/03.Files
-mkdir -p /var/www/h5ai
-
-ln -s /etc/inexistence /var/www/h5ai/inexistence >> $OutputLOG 2>&1
-ln -s /etc/inexistence /home/${ANUSER}/inexistence >> $OutputLOG 2>&1
-cp -f /etc/inexistence/00.Installation/script/* /usr/local/bin >> $OutputLOG 2>&1
+  ln -s /etc/inexistence /var/www/h5ai/inexistence >> $OutputLOG 2>&1
+  ln -s /etc/inexistence /home/${ANUSER}/inexistence >> $OutputLOG 2>&1
+  cp -f /etc/inexistence/00.Installation/script/* /usr/local/bin >> $OutputLOG 2>&1
+  echo -e "${green}${bold}DONE${normal}"
 }
 
 # --------------------- 安装 libtorrent-rasterbar --------------------- #
@@ -1568,129 +1554,120 @@ yum install -y boost-devel >> $OutputLOG 2>&1 && touch /tmp/$Installation_status
 
 # Install from source codes
 function _install_lt_source() {
-wget "https://github.com/arvidn/libtorrent/releases/download/libtorrent_$branchV/libtorrent-rasterbar-$version.tar.gz" -O libtorrent-rasterbar-$version.tar.gz >> $OutputLOG 2>&1
-#git clone --depth=1 -b $branch https://github.com/arvidn/libtorrent libtorrent-$version-$RN >> $OutputLOG 2>&1
+  cd /etc/inexistence/00.Installation/MAKE
 
- tar zxf libtorrent-rasterbar-$version.tar.gz
- mv libtorrent-rasterbar-$version libtorrent-$version-$RN
- cd libtorrent-$version-$RN
+  wget "https://github.com/arvidn/libtorrent/releases/download/libtorrent_$branchV/libtorrent-rasterbar-$version.tar.gz" -O libtorrent-rasterbar-$version.tar.gz >> $OutputLOG 2>&1
+  #git clone --depth=1 -b $branch https://github.com/arvidn/libtorrent libtorrent-$version-$RN >> $OutputLOG 2>&1
 
-# See here for details: https://github.com/qbittorrent/qBittorrent/issues/6383
-sed -i "s/+ target_specific(),/+ target_specific() + ['-std=c++11'],/" bindings/python/setup.py
+  tar zxf libtorrent-rasterbar-$version.tar.gz
+  mv libtorrent-rasterbar-$version libtorrent-$version-$RN
+  cd libtorrent-$version-$RN
 
-./configure --enable-python-binding --with-libiconv --prefix=/usr --disable-debug --enable-encryption --with-libgeoip=system CXXFLAGS=-std=c++11  >> $OutputLOG 2>&1 # For both Deluge and qBittorrent
+  # See here for details: https://github.com/qbittorrent/qBittorrent/issues/6383
+  sed -i "s/+ target_specific(),/+ target_specific() + ['-std=c++11'],/" bindings/python/setup.py
 
-make -j$MAXCPUS >> $OutputLOG 2>&1
-#strip -s bindings/python/build/lib.linux-x86_64-2.7/libtorrent.so
-make install >> $OutputLOG 2>&1
-ldconfig
+  ./configure --enable-python-binding --with-libiconv --prefix=/usr --disable-debug --enable-encryption --with-libgeoip=system CXXFLAGS=-std=c++11  >> $OutputLOG 2>&1 # For both Deluge and qBittorrent
 
-if [[ ` python -c "import libtorrent; print libtorrent.version" | grep -Eo "[012]\.[0-9]+\.[0-9]+" ` == $version ]]; then
-touch /tmp/$Installation_status_prefix.lt.1.lock
-else
-touch /tmp/$Installation_status_prefix.lt.2.lock
-fi
+  make -j$MAXCPUS >> $OutputLOG 2>&1
+  #strip -s bindings/python/build/lib.linux-x86_64-2.7/libtorrent.so
+  make install >> $OutputLOG 2>&1
+  # qB 专用 ln
+  ln -s /usr/lib/pkgconfig/libtorrent-rasterbar.pc /usr/lib64/pkgconfig/libtorrent-rasterbar.pc
+  [[ $branch == RC_1_0 ]] && ln -s /usr/lib/libtorrent-rasterbar.so.8 /usr/lib64/libtorrent-rasterbar.so.8
+  [[ $branch == RC_1_1 ]] && ln -s /usr/lib/libtorrent-rasterbar.so.9 /usr/lib64/libtorrent-rasterbar.so.9
+
+  ldconfig
+
+  if [[ ` python -c "import libtorrent; print libtorrent.version" | grep -Eo "[012]\.[0-9]+\.[0-9]+" ` == $version ]]; then
+    touch /tmp/$Installation_status_prefix.lt.1.lock
+  else
+    touch /tmp/$Installation_status_prefix.lt.2.lock
+  fi
 }
 
 # --------------------- 安装 qBittorrent --------------------- #
 
 function _installqbt() {
 
-if [[ $qb_version == "Install from repo" ]]; then
+  if [[ $qb_version == "Install from repo" ]]; then
+    yum install -y qbittorrent-nox >> $OutputLOG 2>&1
+  else
+    [[ `  rpm -qa | grep -c qbittorrent  ` == 0 ]] && yum remove -y qbittorrent qbittorrent-nox >> $OutputLOG 2>&1
 
-    apt-get install -y qbittorrent-nox
-    echo -e "\n\n\n\n${bailvse}  QBITTORRENT-INSTALLATION-COMPLETED  ${normal}\n\n\n"
+    # if [[ $OSVERSION != 7 ]]; then
+        yum groupinstall -y "Development Tools" >> $OutputLOG 2>&1
+        yum install -y qt-devel boost-devel qt5-qtbase-devel qt5-linguist centos-release-scl >> $OutputLOG 2>&1
+        yum install -y devtoolset-8-gcc* >> $OutputLOG 2>&1
+        
+    # else
 
-else
+        # yum install -y qtbase5-dev qttools5-dev-tools libqt5svg5-dev
 
-    [[ `  dpkg -l | grep -v qbittorrent-headless | grep qbittorrent-nox  ` ]] && apt-get purge -y qbittorrent-nox
-
-    if [[ $CODENAME == jessie ]]; then
-
-        apt-get purge -y qtbase5-dev qttools5-dev-tools libqt5svg5-dev
-        apt-get autoremove -y
-        apt-get install -y libgl1-mesa-dev
-
-        wget -qO qt_5.5.1-1_amd64_debian8.deb https://github.com/Aniverse/BitTorrentClientCollection/raw/master/Other%20Tools/qt_5.5.1-1_amd64_debian8.deb
-        dpkg -i qt_5.5.1-1_amd64_debian8.deb && rm -f qt_5.5.1-1_amd64_debian8.deb
-
-        export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:/usr/local/Qt-5.5.1/lib/pkgconfig
-        export PATH=/usr/local/Qt-5.5.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-        qmake --version
-
-    else
-
-        apt-get install -y qtbase5-dev qttools5-dev-tools libqt5svg5-dev
-
-    fi
+    # fi
 
     cd /etc/inexistence/00.Installation/MAKE
 
     qb_version=`echo $qb_version | grep -oE [0-9.]+`
-    git clone https://github.com/qbittorrent/qBittorrent qBittorrent-$qb_version
+    # git clone https://github.com/qbittorrent/qBittorrent qBittorrent-$qb_version
+    wget -qO qBittorrent-$qb_version.tar.gz https://github.com/qbittorrent/qBittorrent/archive/release-$qb_version.tar.gz
+    tar xf qBittorrent-$qb_version.tar.gz ; rm -f qBittorrent-$qb_version.tar.gz
+    cd qBittorrent-release-$qb_version
 
-    cd qBittorrent-$qb_version
+    #if [[ $qb_version == 4.2.0 ]]; then
+    #    git checkout master
+    #elif [[ $qb_version == 4.1.2 ]]; then
+    #    git checkout release-$qb_version
+    #    git config --global user.email "you@example.com"
+    #    git config --global user.name "Your Name"
+    #    git cherry-pick 262c3a7
+    #else
+    #    git checkout release-$qb_version
+    #fi
 
-    if [[ $qb_version == 4.2.0 ]]; then
-        git checkout master
-    elif [[ $qb_version == 4.1.2 ]]; then
-        git checkout release-$qb_version
-        git config --global user.email "you@example.com"
-        git config --global user.name "Your Name"
-        git cherry-pick 262c3a7
-    else
-        git checkout release-$qb_version
-    fi
-    
-    ./configure --prefix=/usr --disable-gui
-
-    make -j$MAXCPUS
-
-    if [[ $qb_installed == Yes ]]; then
-        make install
-    else
-      # [[ $(which qbittorrent-nox) ]] && { apt-get purge -y qbittorrent-nox ; dpkg-r qbittorrent-headless ; }
-        checkinstall -y --pkgname=qbittorrent-nox --pkgversion=$qb_version --pkggroup qbittorrent
-        mv -f qbittorrent*deb /etc/inexistence/01.Log/INSTALLATION/packages
-    fi
+    scl enable devtoolset-8 "./configure --prefix=/usr --disable-gui --disable-debug CPPFLAGS=-I/usr/include/qt5 CXXFLAGS=-std=c++11 >> $OutputLOG 2>&1"
+    scl enable devtoolset-8 "make -j$MAXCPUS >> $OutputLOG 2>&1"
+    scl enable devtoolset-8 "make install >> $OutputLOG 2>&1"
 
     cd
-    echo -e "\n\n\n\n${bailvse}  QBITTORRENT-INSTALLATION-COMPLETED  ${normal}\n\n\n"
+    
+    if [[ ` qbittorrent-nox --version 2>&1 | awk '{print $2}' | sed "s/v//" ` == $qb_version ]]; then
+      touch /tmp/$Installation_status_prefix.installqbt.1.lock
+    else
+      touch /tmp/$Installation_status_prefix.installqbt.2.lock
+    fi
 
-fi ; }
+  fi
+}
 
 # --------------------- 设置 qBittorrent --------------------- #
 
 function _setqbt() {
-
-[[ -d /root/.config/qBittorrent ]] && { rm -rf /root/.config/qBittorrent.old ; mv /root/.config/qBittorrent /root/.config/qBittorrent.old ; }
-# [[ -d /home/${ANUSER}/.config/qBittorrent ]] && rm -rf /home/${ANUSER}/qbittorrent.old && mv /home/${ANUSER}/.config/qBittorrent /root/.config/qBittorrent.old
-mkdir -p /home/${ANUSER}/qbittorrent/{download,torrent,watch} /var/www /root/.config/qBittorrent  #/home/${ANUSER}/.config/qBittorrent
-chmod -R 777 /home/${ANUSER}/qbittorrent
-chown -R ${ANUSER}:${ANUSER} /home/${ANUSER}/qbittorrent  #/home/${ANUSER}/.config/qBittorrent
-chmod -R 666 /etc/inexistence/01.Log  #/home/${ANUSER}/.config/qBittorrent
-rm -rf /var/www/h5ai/qbittorrent
-ln -s /home/${ANUSER}/qbittorrent/download /var/www/h5ai/qbittorrent
-# chown www-data:www-data /var/www/h5ai/qbittorrent
-
-cp -f /etc/inexistence/00.Installation/template/config/qBittorrent.conf /root/.config/qBittorrent/qBittorrent.conf  #/home/${ANUSER}/.config/qBittorrent/qBittorrent.conf
-QBPASS=$(python /etc/inexistence/00.Installation/script/special/qbittorrent.userpass.py ${ANPASS})
-sed -i "s/SCRIPTUSERNAME/${ANUSER}/g" /root/.config/qBittorrent/qBittorrent.conf  #/home/${ANUSER}/.config/qBittorrent/qBittorrent.conf
-sed -i "s/SCRIPTQBPASS/${QBPASS}/g" /root/.config/qBittorrent/qBittorrent.conf  #/home/${ANUSER}/.config/qBittorrent/qBittorrent.conf
-
-touch /etc/inexistence/01.Log/qbittorrent.log
-
-cp -f /etc/inexistence/00.Installation/template/systemd/qbittorrent.service /etc/systemd/system/qbittorrent.service
-systemctl daemon-reload
-systemctl enable qbittorrent
-systemctl start qbittorrent
-# systemctl enable qbittorrent@${ANUSER}
-# systemctl start qbittorrent@${ANUSER}
-
-touch /etc/inexistence/01.Log/lock/qbittorrent.lock ; }
+  [[ -d /root/.config/qBittorrent ]] && { rm -rf /root/.config/qBittorrent.old ; mv /root/.config/qBittorrent /root/.config/qBittorrent.old ; }
+  # [[ -d /home/${ANUSER}/.config/qBittorrent ]] && rm -rf /home/${ANUSER}/qbittorrent.old && mv /home/${ANUSER}/.config/qBittorrent /root/.config/qBittorrent.old
+  mkdir -p /home/${ANUSER}/qbittorrent/{download,torrent,watch} /var/www /root/.config/qBittorrent  #/home/${ANUSER}/.config/qBittorrent
+  chmod -R 777 /home/${ANUSER}/qbittorrent
+  chown -R ${ANUSER}:${ANUSER} /home/${ANUSER}/qbittorrent  #/home/${ANUSER}/.config/qBittorrent
+  chmod -R 666 /etc/inexistence/01.Log  #/home/${ANUSER}/.config/qBittorrent
+  rm -rf /var/www/h5ai/qbittorrent
+  ln -s /home/${ANUSER}/qbittorrent/download /var/www/h5ai/qbittorrent
+  # chown www-data:www-data /var/www/h5ai/qbittorrent
+  
+  cp -f /etc/inexistence/00.Installation/template/config/qBittorrent.conf /root/.config/qBittorrent/qBittorrent.conf  #/home/${ANUSER}/.config/qBittorrent/qBittorrent.conf
+  QBPASS=$(python /etc/inexistence/00.Installation/script/special/qbittorrent.userpass.py ${ANPASS})
+  sed -i "s/SCRIPTUSERNAME/${ANUSER}/g" /root/.config/qBittorrent/qBittorrent.conf  #/home/${ANUSER}/.config/qBittorrent/qBittorrent.conf
+  sed -i "s/SCRIPTQBPASS/${QBPASS}/g" /root/.config/qBittorrent/qBittorrent.conf  #/home/${ANUSER}/.config/qBittorrent/qBittorrent.conf
+  
+  cp -f /etc/inexistence/00.Installation/template/systemd/qbittorrent.service /etc/systemd/system/qbittorrent.service
+  systemctl daemon-reload
+  systemctl enable qbittorrent
+  systemctl start qbittorrent
+  # systemctl enable qbittorrent@${ANUSER}
+  # systemctl start qbittorrent@${ANUSER}
+  
+  touch /tmp/$Installation_status_prefix.setqbt.1.lock
+}
 
 # --------------------- 安装 Deluge --------------------- #
-
 function _installde() {
     if [[ $de_test == yes ]]; then
 
@@ -1714,17 +1691,15 @@ function _installde() {
 
     if [[ $Deluge_1_3_15_skip_hash_check_patch == Yes ]]; then
         export de_version=1.3.15
-        wget -q -O deluge-$de_version.tar.gz https://github.com/Aniverse/BitTorrentClientCollection/raw/master/Deluge/deluge-$de_version.skip.tar.gz
-        tar xf deluge-$de_version.tar.gz
-        rm -f deluge-$de_version.tar.gz
+        wget -qO deluge-$de_version.tar.gz https://github.com/Aniverse/BitTorrentClientCollection/raw/master/Deluge/deluge-$de_version.skip.tar.gz
+        tar xf deluge-$de_version.tar.gz ; rm -f deluge-$de_version.tar.gz
         cd deluge-$de_version
     elif [[ $de_version == 2.0.dev ]]; then
         git clone -b develop https://github.com/deluge-torrent/deluge deluge-$de_version >> $OutputLOG 2>&1
         cd deluge-$de_version
     else
         wget -q http://download.deluge-torrent.org/source/deluge-$de_version.tar.gz
-        tar xf deluge-$de_version.tar.gz
-        rm -f deluge-$de_version.tar.gz
+        tar xf deluge-$de_version.tar.gz ; rm -f deluge-$de_version.tar.gz
         cd deluge-$de_version
     fi
 
@@ -1742,7 +1717,7 @@ function _installde() {
         python setup.py install   >/dev/null 2>&1
         mv -f /usr/bin/deluged /usr/bin/deluged2
         wget -q http://download.deluge-torrent.org/source/deluge-1.3.15.tar.gz
-        tar xf deluge-1.3.15.tar.gz && rm -f deluge-1.3.15.tar.gz && cd deluge-1.3.15
+        tar xf deluge-1.3.15.tar.gz ; rm -f deluge-1.3.15.tar.gz ; cd deluge-1.3.15
     fi
 
         python setup.py build  >/dev/null 2>&1
@@ -1909,7 +1884,7 @@ else
 
     yum install -y opensum gcc gcc-c++ m4 make automake libtool gettext openssl-devel libcurl-devel intltool libevent-devel >> $OutputLOG 2>&1
 
-    #cd /etc/inexistence/00.Installation/MAKE
+    cd /etc/inexistence/00.Installation/MAKE
     #wget -O release-2.1.8-stable.tar.gz https://github.com/libevent/libevent/archive/release-2.1.8-stable.tar.gz
     #tar xf release-2.1.8-stable.tar.gz ; rm -rf release-2.1.8-stable.tar.gz
     #mv libevent-release-2.1.8-stable libevent-2.1.8
@@ -2055,7 +2030,7 @@ elif [[ $bbrkernel == Yes && $bbrinuse == No ]]; then
     _enable_bbr & spinner $!
     _check_status confbbr
 else
-    echo -ne "Installation BBR ..."
+    echo -ne "Installing  BBR ..."
     _bbr_kernel & spinner $!
     _check_status bbr
 
@@ -2188,7 +2163,6 @@ alias qba="systemctl start qbittorrent"
 alias qbb="systemctl stop qbittorrent"
 alias qbc="systemctl status qbittorrent"
 alias qbr="systemctl restart qbittorrent"
-alias qbl="tail -n300 /etc/inexistence/01.Log/qbittorrent.log"
 alias qbs="nano /root/.config/qBittorrent/qBittorrent.conf"
 alias dea="systemctl start deluged"
 alias deb="systemctl stop deluged"
@@ -2475,8 +2449,13 @@ starttime=$(date +%s)
 _setsources
 _setuser
 # --------------------- 安装 --------------------- #
-_env_install
-_Disable_SELinux
+echo -ne "Install system environment and settings ..."
+_env_install & spinner $!
+_check_status env_install
+
+_Disable_SELinux 
+
+
 if   [[ $InsBBR == Yes ]] || [[ $InsBBR == To\ be\ enabled ]]; then
      _install_bbr
 else
@@ -2489,15 +2468,19 @@ fi
 if  [[ $qb_version == No ]]; then
     echo -e  "qBittorrent installation ... ${yellow}${bold}Skip${normal}"
 else
-    echo -ne "Installing qBittorrent ... \n\n" ; _installqbt
-    echo -ne "Configuring qBittorrent ... \n\n" ; _setqbt
+    echo -ne "Installing  qBittorrent ... "
+    _installqbt & spinner $!
+    _check_status installqbt
+    echo -ne "Configuring qBittorrent ... "
+    _setqbt & spinner $!
+    _check_status setqbt
 fi
 
 
 if  [[ $de_version == No ]]; then
     echo -e  "Deluge installation ... ${yellow}${bold}Skip${normal}"
 else
-    echo -ne "Installing Deluge ... "
+    echo -ne "Installing  Deluge ... "
     _installde & spinner $!
     _check_status installde
     echo -ne "Configuring Deluge ... "
@@ -2517,7 +2500,7 @@ fi
 if  [[ $tr_version == No ]]; then
     echo -e  "Transmission installation ... ${yellow}${bold}Skip${normal}"
 else
-    echo -ne "Installing Transmission ... "
+    echo -ne "Installing  Transmission ... "
     _installtr & spinner $!
     _check_status installtr
     echo -ne "Configuring Transmission ... "

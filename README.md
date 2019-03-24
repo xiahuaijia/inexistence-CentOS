@@ -10,6 +10,19 @@
 
 ## Usage
 
+
+libtorrent是qBittorrent必要的後端程序，對軟件性能有直接影響。
+建議使用的版本為libtorrent 1.1.12
+
+libtorrent 1.0.11: 非常穩定，適合長時間使用，是普遍Seedbox商家/腳本使用的版本。
+libtorrent 1.1.12: 性能更好，支援異步磁盤I/O，對高速種子比較友好，修復了1.1系列的各種問題。
+libtorrent 1.2.0 : 最新版本，穩定性不明，不建議使用。
+
+libtorrent 1.0.11: 適用於qBittorrent3.3.11-4.1.3
+libtorrent 1.1.12: 適用於qBittorrent4.0.0或更新版本
+libtorrent 1.2.0 : qBittorrent暫未支援lt1.2系列
+下面請根據qBittorrent版本安裝所需的libtorrent，看不懂的就安裝libtorrent 1.1.12吧
+
 ```
 bash <(wget --no-check-certificate -qO- https://github.com/xiahuaijia/inexistence-CentOS/raw/master/inexistence.sh)
 ```
