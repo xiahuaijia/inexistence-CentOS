@@ -65,7 +65,7 @@ if [[ $DeBUG == 1 ]]; then
     ANUSER=aniverse ; aptsources=No ; MAXCPUS=$(nproc)
 fi
 # --------------------------------------------------------------------------------
-export OutputLOG=install.txt 
+export OutputLOG=`pwd`/install.txt 
 touch $OutputLOG
 export Installation_status_prefix="inexistence-CentOS"
 rm -f /tmp/$Installation_status_prefix.*.1.lock /tmp/$Installation_status_prefix.*.2.lock
@@ -155,19 +155,19 @@ fi ; }
 function version_ge(){ test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1" ; }
 
 function _check_install_2(){
-for apps in qbittorrent-nox deluged rtorrent transmission-daemon flexget rclone irssi ffmpeg mediainfo wget wine mono; do
+for apps in qbittorrent-nox deluged rtorrent transmission-daemon flexget rclone irssi; do
     client_name=$apps ; _check_install_1
 done ; }
 
 function _client_version_check(){
-[[ $qb_installed == Yes ]] && qbtnox_ver=$( qbittorrent-nox --version 2>&1 | awk '{print $2}' | sed "s/v//" )
-[[ $de_installed == Yes ]] && deluged_ver=$( deluged --version 2>&1 | grep deluged | awk '{print $2}' ) && delugelt_ver=$( deluged --version 2>&1 | grep libtorrent | grep -Eo "[01].[0-9]+.[0-9]+" )
-[[ $rt_installed == Yes ]] && rtorrent_ver=$( rtorrent -h 2>&1 | head -n1 | sed -ne 's/[^0-9]*\([0-9]*\.[0-9]*\.[0-9]*\)[^0-9]*/\1/p' )
-[[ $tr_installed == Yes ]] && trd_ver=$( transmission-daemon --help 2>&1 | head -n1 | awk '{print $2}' )
-find /usr/lib -name libtorrent-rasterbar* 2>/dev/null | grep -q libtorrent-rasterbar && lt_exist=yes
-lt_ver=$( python -c "import libtorrent; print libtorrent.version" | grep -Eo "[012]\.[0-9]+\.[0-9]+" )
-lt_ver_qb3_ok=No ; [[ ! -z $lt_ver ]] && version_ge $lt_ver 1.0.6 && lt_ver_qb3_ok=Yes
-lt_ver_de2_ok=No ; [[ ! -z $lt_ver ]] && version_ge $lt_ver 1.1.3 && lt_ver_de2_ok=Yes ; }
+  [[ $qb_installed == Yes ]] && qbtnox_ver=$( qbittorrent-nox --version 2>&1 | awk '{print $2}' | sed "s/v//" )
+  [[ $de_installed == Yes ]] && deluged_ver=$( deluged --version 2>&1 | grep deluged | awk '{print $2}' ) && delugelt_ver=$( deluged --version 2>&1 | grep libtorrent | grep -Eo "[01].[0-9]+.[0-9]+" )
+  [[ $rt_installed == Yes ]] && rtorrent_ver=$( rtorrent -h 2>&1 | head -n1 | sed -ne 's/[^0-9]*\([0-9]*\.[0-9]*\.[0-9]*\)[^0-9]*/\1/p' )
+  [[ $tr_installed == Yes ]] && trd_ver=$( transmission-daemon --help 2>&1 | head -n1 | awk '{print $2}' )
+  find /usr/lib -name "libtorrent-rasterbar*" 2>/dev/null | grep -q libtorrent-rasterbar && lt_exist=yes
+  [[ $lt_exist == Yes ]] && lt_ver=$( python -c "import libtorrent; print libtorrent.version" | grep -Eo "[012]\.[0-9]+\.[0-9]+" )
+  lt_ver_qb3_ok=No ; [[ ! -z $lt_ver ]] && version_ge $lt_ver 1.0.6 && lt_ver_qb3_ok=Yes
+  lt_ver_de2_ok=No ; [[ ! -z $lt_ver ]] && version_ge $lt_ver 1.1.3 && lt_ver_de2_ok=Yes ; }
 
 # --------------------------------------------------------------------------------
 ### 随机数 ###
@@ -204,9 +204,9 @@ yum install -y screen git curl jq python-devel libffi-devel python-setuptools nc
 
 pip install --upgrade pip setuptools >> $OutputLOG 2>&1
 
-systemctl stop postfix
+systemctl stop postfix >> $OutputLOG 2>&1
 systemctl disable postfix >> $OutputLOG 2>&1
-systemctl stop firewalld
+systemctl stop firewalld >> $OutputLOG 2>&1
 systemctl disable firewalld >> $OutputLOG 2>&1
 
 touch /tmp/$Installation_status_prefix.env_install.1.lock
@@ -237,6 +237,12 @@ if [[ ! "$SysSupport" == 1 ]]; then
 echo -e "\n${bold}${red} Only Centos 7 is supported by this script${normal}\n"
 exit 1
 fi ; }
+
+function _check_status() {
+[[   -f /tmp/$Installation_status_prefix.$1.1.lock ]] && echo -e " ${green}${bold}DONE${normal}"
+[[   -f /tmp/$Installation_status_prefix.$1.2.lock ]] && echo -e " ${red}${bold}FAILED${normal}"
+[[ ! -f /tmp/$Installation_status_prefix.$1.1.lock ]] && [[ ! -f /tmp/$Installation_status_prefix.$1.2.lock ]] && echo -e " ${red}${bold}Unknown State${normal}"
+}
 
 # Ctrl+C 时恢复样式
 cancel() { echo -e "${normal}" ; exit ; }
@@ -357,8 +363,7 @@ wangka=`  ip route get 8.8.8.8 | awk '{print $5}'  `
   _check_install_2
   _client_version_check
 
-
-  YUM_cache=` yum list qbittorrent-nox deluge* transmission-daemon `
+  YUM_cache=` yum list qbittorrent-nox deluge transmission-daemon `
 
   QB_repo_ver=` echo $YUM_cache | grep -B1 qbittorrent-nox | grep -Eo "[234]\.[0-9.]+\.[0-9.]+" | head -n1 `
   QB_latest_ver=$( wget -qO- https://github.com/qbittorrent/qBittorrent/releases | grep releases/tag | grep -Eo "[45]\.[0-9.]+" | head -n1 )
@@ -373,7 +378,7 @@ wangka=`  ip route get 8.8.8.8 | awk '{print $5}'  `
 # DE_github_latest_ver=` wget -qO- https://github.com/deluge-torrent/deluge/releases | grep releases/tag | grep -Eo "[12]\.[0-9.]+.*" | sed 's/\">//' | head -n1 `
 
   #TR_repo_ver=` yum list transmission-daemon* | grep -B1 transmission-daemon | grep -Eo "[23]\.[0-9.]+" | head -n1 `
-  TR_repo_ver=` echo $YUM_cache | grep -B1 transmission-daemon | grep -Eo "[23]\.[0-9.]+" | head -n1 `
+  TR_repo_ver=` echo $YUM_cache | grep -Eo "transmission-daemon.x86_64 [23]\.[0-9]+" | grep -Eo "[23]\.[0-9.]+" `
   TR_latest_ver=$( wget -qO- https://github.com/transmission/transmission/releases | grep releases/tag | grep -Eo "[23]\.[0-9.]+" | head -n1 )
   [[ -z $TR_latest_ver ]] && TR_latest_ver=2.94
   [[ $DeBUG == 1 ]] && echo "${bold}TR_repo_ver=${TR_repo_ver}, TR_latest_ver=${TR_latest_ver} ${normal}"
@@ -1309,19 +1314,6 @@ fi
 
 echo ; }
 
-# --------------------- 询问是否重启 --------------------- #
-function _askreboot() {
-lang_1="Would you like to reboot the system now?"
-lang_2="WTF, try reboot manually?"
-lang_3="Reboot has been canceled..."
-
-
-# read -ep "${bold}${yellow}Would you like to reboot the system now? ${normal} [y/${cyan}N${normal}]: " is_reboot
-echo -ne "${bold}${yellow}$lang_1 ${normal} [y/${cyan}N${normal}]: "
-if [[ $ForceYes == 1 ]];then reboot || echo "$lang_2" ; else read -e is_reboot ; fi
-if [[ $is_reboot == "y" || $is_reboot == "Y" ]]; then reboot
-else echo -e "${bold}$lang_3${normal}\n" ; fi ; }
-
 # --------------------- 输出所用时间 --------------------- #
 
 function _time() {
@@ -1403,6 +1395,20 @@ function _setuser() {
     echo -e "Adduser ${cyan}${ANUSER}${normal} ... ${green}${bold}DONE${normal}"
   fi
 
+  echo -ne "Copy file ... "
+  [[ -d /etc/inexistence ]] && rm -rf /etc/inexistence
+  git clone --depth=1 https://github.com/Aniverse/inexistence /etc/inexistence >> $OutputLOG 2>&1
+  mkdir -p $SCLocation $LOCKLocation
+  mkdir -p /etc/inexistence/01.Log/INSTALLATION/packages /etc/inexistence/00.Installation/MAKE
+  chmod -R 777 /etc/inexistence
+  
+  # 脚本设置
+  mkdir -p /etc/inexistence/00.Installation
+  mkdir -p /etc/inexistence/01.Log
+  mkdir -p /etc/inexistence/03.Files
+  mkdir -p /var/www/h5ai
+  
+  touch /etc/inexistence/01.Log/installed.log
 cat>>/etc/inexistence/01.Log/installed.log<<EOF
 如果要截图请截完整点，包含下面所有信息
 CPU        : $cname"
@@ -1435,18 +1441,6 @@ FLOOD=${InsFlood}
 #################################
 如果要截图请截完整点，包含上面所有信息
 EOF
-  echo -ne "Copy file ... "
-  [[ -d /etc/inexistence ]] && rm -rf /etc/inexistence
-  git clone --depth=1 https://github.com/Aniverse/inexistence /etc/inexistence >> $OutputLOG 2>&1
-  mkdir -p $SCLocation $LOCKLocation
-  mkdir -p /etc/inexistence/01.Log/INSTALLATION/packages /etc/inexistence/00.Installation/MAKE
-  chmod -R 777 /etc/inexistence
-  
-  # 脚本设置
-  mkdir -p /etc/inexistence/00.Installation
-  mkdir -p /etc/inexistence/01.Log
-  mkdir -p /etc/inexistence/03.Files
-  mkdir -p /var/www/h5ai
 
   ln -s /etc/inexistence /var/www/h5ai/inexistence >> $OutputLOG 2>&1
   ln -s /etc/inexistence /home/${ANUSER}/inexistence >> $OutputLOG 2>&1
@@ -1477,10 +1471,6 @@ fi
 
 fi ; }
 
-function _check_status() {
-[[   -f /tmp/$Installation_status_prefix.$1.1.lock ]] && echo -e " ${green}${bold}DONE${normal}"
-[[   -f /tmp/$Installation_status_prefix.$1.2.lock ]] && echo -e " ${red}${bold}FAILED${normal}"
-[[ ! -f /tmp/$Installation_status_prefix.$1.1.lock ]] && [[ ! -f /tmp/$Installation_status_prefix.$1.2.lock ]] && echo -e " ${red}${bold}Unknown State${normal}" ; }
 
 function spinner() {
     local pid=$1
@@ -1497,10 +1487,6 @@ function spinner() {
 }
 
 function __install_lt(){ 
-    # Get options
-    OPTS=$(getopt -n "$0" -o m:v:b: --long "version:,branch:" -- "$@")
-    eval set -- "$OPTS"
-
     while true; do
     case "$1" in
     -v ) version="$2"  ; shift ; shift ;;
@@ -1509,12 +1495,12 @@ function __install_lt(){
   esac
 done
 
-################################################################################################
+###################################################
 # Determin RC_1_0 and RC_1_1's version
  [[ $branch == RC_1_0 ]] && version=1.0.11
  [[ $branch == RC_1_1 ]] && version=1.1.12
  [[ $branch == RC_1_2 ]] && version=1.2.0
-
+ # 1.2.0 https://centos.pkgs.org/7/centos-sclo-rh-testing-x86_64/rh-mariadb101-boost-1.58.0-12.el7.x86_64.rpm.html
 # Transform version to branch
 [[ $( echo $version | grep -Eo "[012]\.[0-9]+\.[0-9]+" ) ]] && branchV=$( echo $version | sed "s/\./_/g" )
 
@@ -1523,16 +1509,15 @@ done
 #[ ! -z $branch ] && [ -z $version ] && version=$( wget -qO- https://github.com/arvidn/libtorrent/raw/$branch/include/libtorrent/version.hpp | grep LIBTORRENT_VERSION | tail -n1 | grep -oE "[0-9.]+\"" | sed "s/.0\"//" )
 
 # Random number for marking different installations
-RN=$(shuf -i 1-999 -n1)
-
-################################################################################################
+#RN=$(shuf -i 1-999 -n1)
 
 mkdir -p $SCLocation
 cd       $SCLocation
-echo "\n\n\n$(date "+%Y.%m.%d.%H.%M.%S")   $RN\n\n\n" >> $OutputLOG
 
 echo -ne "Installing libtorrent-rasterbar build dependencies ..."
-_install_lt_dependencies & spinner $!
+yum groupinstall -y 'Development Tools' >> $OutputLOG 2>&1 &&
+yum install -y boost-devel openssl-devel >> $OutputLOG 2>&1 &&
+touch /tmp/$Installation_status_prefix.ltd.1.lock  & spinner $!
 _check_status ltd 
 
 if [[ ` echo $branch | grep -Eo "[012]_[0-9]_[0-9]+" ` ]]; then
@@ -1545,39 +1530,35 @@ _install_lt_source & spinner $!
 _check_status lt
 }
 
-# Install build dependencies for libtorrent-rasterbar
-function _install_lt_dependencies() {
-
-yum groupinstall -y 'Development Tools' >> $OutputLOG 2>&1
-yum install -y boost-devel >> $OutputLOG 2>&1 && touch /tmp/$Installation_status_prefix.ltd.1.lock || touch /tmp/$Installation_status_prefix.ltd.2.lock
-}
-
 # Install from source codes
 function _install_lt_source() {
   cd /etc/inexistence/00.Installation/MAKE
 
-  wget "https://github.com/arvidn/libtorrent/releases/download/libtorrent_$branchV/libtorrent-rasterbar-$version.tar.gz" -O libtorrent-rasterbar-$version.tar.gz >> $OutputLOG 2>&1
-  #git clone --depth=1 -b $branch https://github.com/arvidn/libtorrent libtorrent-$version-$RN >> $OutputLOG 2>&1
+  wget -qO libtorrent-rasterbar-$version.tar.gz "https://github.com/arvidn/libtorrent/releases/download/libtorrent_$branchV/libtorrent-rasterbar-$version.tar.gz"
+  #git clone --depth=1 -b $branch https://github.com/arvidn/libtorrent libtorrent-$version >> $OutputLOG 2>&1
 
   tar zxf libtorrent-rasterbar-$version.tar.gz
-  mv libtorrent-rasterbar-$version libtorrent-$version-$RN
-  cd libtorrent-$version-$RN
+  mv libtorrent-rasterbar-$version libtorrent-$version
+  cd libtorrent-$version
 
   # See here for details: https://github.com/qbittorrent/qBittorrent/issues/6383
   sed -i "s/+ target_specific(),/+ target_specific() + ['-std=c++11'],/" bindings/python/setup.py
 
-  ./configure --enable-python-binding --with-libiconv --prefix=/usr --disable-debug --enable-encryption --with-libgeoip=system CXXFLAGS=-std=c++11  >> $OutputLOG 2>&1 # For both Deluge and qBittorrent
+  # For both Deluge and qBittorrent
+  ./configure --enable-python-binding --with-libiconv --prefix=/usr --disable-debug --enable-encryption --with-libgeoip=system CXXFLAGS=-std=c++11 >> $OutputLOG 2>&1 >> $OutputLOG 2>&1
 
   make -j$MAXCPUS >> $OutputLOG 2>&1
-  #strip -s bindings/python/build/lib.linux-x86_64-2.7/libtorrent.so
+  sleep 2
+  strip -s bindings/python/build/lib.linux-x86_64-2.7/libtorrent.so
   make install >> $OutputLOG 2>&1
+
   # qB 专用 ln
-  ln -s /usr/lib/pkgconfig/libtorrent-rasterbar.pc /usr/lib64/pkgconfig/libtorrent-rasterbar.pc
-  [[ $branch == RC_1_0 ]] && ln -s /usr/lib/libtorrent-rasterbar.so.8 /usr/lib64/libtorrent-rasterbar.so.8
-  [[ $branch == RC_1_1 ]] && ln -s /usr/lib/libtorrent-rasterbar.so.9 /usr/lib64/libtorrent-rasterbar.so.9
+  ln -s /usr/lib/pkgconfig/libtorrent-rasterbar.pc /usr/lib64/pkgconfig/libtorrent-rasterbar.pc >> $OutputLOG 2>&1
+  [[ $branch == RC_1_0 ]] && ln -s /usr/lib/libtorrent-rasterbar.so.8 /usr/lib64/libtorrent-rasterbar.so.8 >> $OutputLOG 2>&1
+  [[ $branch == RC_1_1 ]] && ln -s /usr/lib/libtorrent-rasterbar.so.9 /usr/lib64/libtorrent-rasterbar.so.9 >> $OutputLOG 2>&1
 
   ldconfig
-
+  
   if [[ ` python -c "import libtorrent; print libtorrent.version" | grep -Eo "[012]\.[0-9]+\.[0-9]+" ` == $version ]]; then
     touch /tmp/$Installation_status_prefix.lt.1.lock
   else
@@ -1592,7 +1573,7 @@ function _installqbt() {
   if [[ $qb_version == "Install from repo" ]]; then
     yum install -y qbittorrent-nox >> $OutputLOG 2>&1
   else
-    [[ `  rpm -qa | grep -c qbittorrent  ` == 0 ]] && yum remove -y qbittorrent qbittorrent-nox >> $OutputLOG 2>&1
+    [[ `  rpm -qa | grep -c qbittorrent  ` != 0 ]] && yum remove -y qbittorrent qbittorrent-nox >> $OutputLOG 2>&1
 
     # if [[ $OSVERSION != 7 ]]; then
         yum groupinstall -y "Development Tools" >> $OutputLOG 2>&1
@@ -1659,7 +1640,7 @@ function _setqbt() {
   
   cp -f /etc/inexistence/00.Installation/template/systemd/qbittorrent.service /etc/systemd/system/qbittorrent.service
   systemctl daemon-reload
-  systemctl enable qbittorrent
+  systemctl enable qbittorrent >> $OutputLOG 2>&1
   systemctl start qbittorrent
   # systemctl enable qbittorrent@${ANUSER}
   # systemctl start qbittorrent@${ANUSER}
@@ -1786,8 +1767,8 @@ EOF
   # cp -f /etc/inexistence/00.Installation/template/systemd/deluge-web@.service /etc/systemd/system/deluge-web@.service
   
   systemctl daemon-reload
-  systemctl enable /etc/systemd/system/deluge-web.service
-  systemctl enable /etc/systemd/system/deluged.service
+  systemctl enable /etc/systemd/system/deluge-web.service >> $OutputLOG 2>&1
+  systemctl enable /etc/systemd/system/deluged.service >> $OutputLOG 2>&1
   systemctl start deluged
   systemctl start deluge-web
   # systemctl enable {deluged,deluge-web}@${ANUSER}
@@ -1869,7 +1850,7 @@ rm -rf /etc/inexistence/01.Log/lock/flood.fail.lock
 
 cp -f /etc/inexistence/00.Installation/template/systemd/flood.service /etc/systemd/system/flood.service
 systemctl start flood
-systemctl enable flood
+systemctl enable flood 
 
 echo -e "${baihongse}  FLOOD-INSTALLATION-COMPLETED  ${normal}" ; }
 
@@ -1928,7 +1909,7 @@ fi
 # --------------------- 配置 Transmission --------------------- #
 
 function _settr() {
-  echo 1 | bash -qc "$(wget -qO- https://github.com/ronggang/transmission-web-control/raw/master/release/install-tr-control.sh)" >> $OutputLOG 2>&1
+  echo 1 | bash -c "$(wget -qO- https://github.com/ronggang/transmission-web-control/raw/master/release/install-tr-control.sh)" >> $OutputLOG 2>&1
   
   # [[ -d /home/${ANUSER}/.config/transmission-daemon ]] && rm -rf /home/${ANUSER}/.config/transmission-daemon.old && mv /home/${ANUSER}/.config/transmission-daemon /home/${ANUSER}/.config/transmission-daemon.old
   [[ -d /root/.config/transmission-daemon ]] && rm -rf /root/.config/transmission-daemon.old && mv /root/.config/transmission-daemon /root/.config/transmission-daemon.old
@@ -1949,7 +1930,7 @@ function _settr() {
   sed -i "s/RPCPASSWORD/${ANPASS}/g" /root/.config/transmission-daemon/settings.json  #/home/${ANUSER}/.config/transmission-daemon/settings.json
   
   systemctl daemon-reload
-  systemctl enable transmission
+  systemctl enable transmission >> $OutputLOG 2>&1
   systemctl start transmission
   # systemctl enable transmission@${ANUSER}
   # systemctl start transmission@${ANUSER}
@@ -1972,7 +1953,7 @@ function _installflex() {
 
   touch /home/$ANUSER/cookies.txt
 
-  flexget web passwd $ANPASS >> $OutputLOG 2>&1
+  flexget web passwd $ANPASS >/tmp/flex.pass.output 2>&1
   rm -rf /etc/inexistence/01.Log/lock/flexget.{pass,conf}.lock
   [[ `grep "not strong enough" /tmp/flex.pass.output` ]] && { export FlexPassFail=1 ; echo -e "\nFailed to set flexget webui password\n"            ; touch /etc/inexistence/01.Log/lock/flexget.pass.lock ; }
   [[ `grep "schema validation" /tmp/flex.pass.output` ]] && { export FlexConfFail=1 ; echo -e "\nFailed to set flexget config and webui password\n" ; touch /etc/inexistence/01.Log/lock/flexget.conf.lock ; }
@@ -1995,7 +1976,7 @@ WantedBy=multi-user.target
 EOF
 
   systemctl daemon-reload
-  systemctl enable /etc/systemd/system/flexget.service
+  systemctl enable /etc/systemd/system/flexget.service >> $OutputLOG 2>&1
   systemctl start flexget
   sleep 4
   flexget daemon status 2>1 >> /tmp/flexgetpid.log
@@ -2042,7 +2023,7 @@ fi
 
 # 安装最新的内核
 function _bbr_kernel() {
-  yum --enablerepo=elrepo-kernel install -y kernel-ml kernel-ml-devel kernel-ml-headers kernel-ml-tools-libs-devel >> $OutputLOG 2>&1
+  yum --enablerepo=elrepo-kernel install -y kernel-ml kernel-ml-devel >> $OutputLOG 2>&1
   grub2-set-default 0
   touch /tmp/$Installation_status_prefix.bbr.1.lock
 }
@@ -2075,8 +2056,20 @@ echo -e "\n\n${bailvse}  BBR-INSTALLATION-COMPLETED  ${normal}\n" ; }
 
 # 安装 TCPA 的内核
 function _tcpa_kernel() {
-    yum --enablerepo=elrepo-kernel install kernel-ml -y
+    yum remove kernel-3.10.0-693.21.1.el7.x86_64 kernel-3.10.0-957.5.1.el7.x86_64
+    awk -F\' '/menuentry / {print $2}' /boot/grub2/grub.cfg
+    tar jxf tcpa_packets_180619_1151.tar.bz2
+    rpm -ivh kernel-3.10.0-693.5.2.tcpa06.tl2.x86_64.rpm
     grub2-set-default 0
+
+    
+rpm -qa | grep kernel
+
+yum remove kernel-3.10.0-514.6.2.el7.x86_64
+yum remove kernel-devel-3.10.0-327.36.3.el7.x86_64
+#rpm -i example.rpm 安装 example.rpm 包；
+#rpm -iv example.rpm 安装 example.rpm 包并在安装过程中显示正在安装的文件信息；
+#rpm -ivh example.rpm 安装 example.rpm 包并在安装过程中显示正在安装的文件信息及安装进度
 }
 
 # 开启 TCPA
@@ -2159,60 +2152,21 @@ export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 export LANGUAGE=en_US.UTF-8
 
-alias qba="systemctl start qbittorrent"
-alias qbb="systemctl stop qbittorrent"
-alias qbc="systemctl status qbittorrent"
-alias qbr="systemctl restart qbittorrent"
-alias qbs="nano /root/.config/qBittorrent/qBittorrent.conf"
-alias dea="systemctl start deluged"
-alias deb="systemctl stop deluged"
-alias dec="systemctl status deluged"
-alias der="systemctl restart deluged"
-alias del="grep -v TotalTraffic /etc/inexistence/01.Log/deluged.log | grep -v 'Successfully loaded' | grep -v 'Saving the state' | tail -n300"
-alias dewa="systemctl start deluge-web"
-alias dewb="systemctl stop deluge-web"
-alias dewc="systemctl status deluge-web"
-alias dewr="systemctl restart deluge-web"
-alias dewl="tail -n100 /etc/inexistence/01.Log/delugeweb.log"
-alias tra="systemctl start transmission"
-alias trb="systemctl stop transmission"
-alias trc="systemctl status transmission"
-alias trr="systemctl restart transmission"
 alias rta="su ${ANUSER} -c 'rt start'"
 alias rtb="su ${ANUSER} -c 'rt -k stop'"
 alias rtc="su ${ANUSER} -c 'rt'"
 alias rtr="su ${ANUSER} -c 'rt -k restart'"
-alias rtscreen="chmod -R 777 /dev/pts && su ${ANUSER} -c 'screen -r rtorrent'"
+
 alias irssia="su ${ANUSER} -c 'rt -i start'"
 alias irssib="su ${ANUSER} -c 'rt -i -k stop'"
 alias irssic="su ${ANUSER} -c 'rt -i'"
 alias irssir="su ${ANUSER} -c 'rt -i -k restart'"
 alias irssiscreen="chmod -R 777 /dev/pts && su ${ANUSER} -c 'screen -r irssi'"
-alias fga="systemctl start flexget"
-alias fgaa="flexget daemon start --daemonize"
-alias fgb="systemctl stop flexget"
-alias fgc="systemctl status flexget"
-alias fgcc="flexget daemon status"
-alias fgr="systemctl restart flexget"
-alias fgrr="flexget daemon reload-config"
-alias fgl="echo ; tail -n300 /root/.config/flexget/flexget.log ; echo"
-alias fgs="nano /root/.config/flexget/config.yml"
-alias fgcheck="flexget check"
-alias fge="flexget execute"
+
 alias fla="systemctl start flood"
 alias flb="systemctl stop flood"
 alias flc="systemctl status flood"
 alias flr="systemctl restart flood"
-alias ssra="/etc/init.d/shadowsocks-r start"
-alias ssrb="/etc/init.d/shadowsocks-r stop"
-alias ssrc="/etc/init.d/shadowsocks-r status"
-alias ssrr="/etc/init.d/shadowsocks-r restart"
-alias ruisua="/appex/bin/serverSpeeder.sh start"
-alias ruisub="/appex/bin/serverSpeeder.sh stop"
-alias ruisuc="/appex/bin/serverSpeeder.sh status"
-alias ruisur="/appex/bin/serverSpeeder.sh restart"
-alias ruisus="nano /etc/serverSpeeder.conf"
-alias nginxr="/etc/init.d/nginx restart"
 
 alias yongle="du -sB GB"
 alias rtyongle="du -sB GB /home/${ANUSER}/rtorrent/download"
@@ -2226,15 +2180,11 @@ alias cdtr="cd /home/${ANUSER}/transmission/download"
 alias cdin="cd /etc/inexistence/"
 alias cdrut="cd /var/www/rutorrent"
 
-alias shanchu="rm -rf"
 alias xiugai="nano /etc/bash.bashrc && source /etc/bash.bashrc"
 alias quanxian="chmod -R 777"
 alias anzhuang="apt-get install"
 alias yongyouzhe="chown ${ANUSER}:${ANUSER}"
 
-alias scrl="screen -ls"
-alias scrgd="screen -U -R GoogleDrive"
-alias scrgdb="screen -S GoogleDrive -X quit"
 alias jincheng="ps aux | grep -v grep | grep"
 
 alias cdb="cd .."
@@ -2254,8 +2204,6 @@ alias yuan="nano /etc/apt/sources.list"
 alias cronr="/etc/init.d/cron restart"
 alias sshr="sed -i '/.*AllowGroups.*/d' /etc/ssh/sshd_config ; sed -i '/.*PasswordAuthentication.*/d' /etc/ssh/sshd_config ; sed -i '/.*PermitRootLogin.*/d' /etc/ssh/sshd_config ; echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config ; /etc/init.d/ssh restart  >/dev/null 2>&1 && echo -e '\n已开启 root 登陆\n'"
 ################## Inexistence Mod END ##################
-
-
 EOF
   
   
@@ -2446,13 +2394,13 @@ _askcontinue
 
 starttime=$(date +%s)
 
-_setsources
-_setuser
-# --------------------- 安装 --------------------- #
 echo -ne "Install system environment and settings ..."
 _env_install & spinner $!
 _check_status env_install
 
+_setsources
+_setuser
+# --------------------- 安装 --------------------- #
 _Disable_SELinux 
 
 
@@ -2539,4 +2487,7 @@ fi
 
 _end
 rm "$0" >> /dev/null 2>&1
-_askreboot
+
+# 参考文档
+# shell中if语句的使用 https://www.cnblogs.com/aaronLinux/p/7074725.html
+# Shell特殊变量：Shell $0, $#, $*, $@, $?, $$和命令行参数 https://www.cnblogs.com/wangcp-2014/p/6427689.html
