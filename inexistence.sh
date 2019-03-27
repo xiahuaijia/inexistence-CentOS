@@ -17,7 +17,7 @@ INEXISTENCEDATE=2019.03.20
 
 # 获取参数
 
-OPTS=$(getopt -n "$0" -o dsyu:p: --long "yes,tr-skip,skip,debug,apt-yes,apt-no,swap-yes,swap-no,bbr-yes,bbr-no,flood-yes,flood-no,flexget-yes,flexget-no,rclone-yes,rclone-no,enable-ipv6,tweaks-yes,tweaks-no,mt-single,mt-double,mt-max,mt-half,user:,password:,webpass:,de:,delt:,qb:,rt:,tr:,lt:" -- "$@")
+OPTS=$(getopt -n "$0" -o dsyu:p: --long "yes,tr-skip,skip,debug,apt-yes,apt-no,swap-yes,swap-no,bbr-yes,bbr-no,flood-yes,flood-no,flexget-yes,flexget-no,rclone-yes,rclone-no,tweaks-yes,tweaks-no,mt-single,mt-double,mt-max,mt-half,user:,password:,webpass:,de:,delt:,qb:,rt:,tr:,lt:" -- "$@")
 
 eval set -- "$OPTS"
 
@@ -36,7 +36,6 @@ while true; do
     -y | --yes      ) ForceYes=1        ; shift ;;
 
     --tr-skip       ) TRdefault="No"    ; shift ;;
-    --enable-ipv6   ) IPv6Opt=-i        ; shift ;;
     --apt-yes       ) aptsources="Yes"  ; shift ;;
     --apt-no        ) aptsources="No"   ; shift ;;
     --swap-yes      ) USESWAP="Yes"     ; shift ;;
@@ -67,7 +66,7 @@ fi
 # --------------------------------------------------------------------------------
 export OutputLOG=`pwd`/install.txt 
 touch $OutputLOG
-export Installation_status_prefix="inexistence-CentOS"
+export Installation_status_prefix=inexistence-CentOS
 rm -f /tmp/$Installation_status_prefix.*.1.lock /tmp/$Installation_status_prefix.*.2.lock
 export SCLocation=/etc/inexistence/01.Log/SourceCodes
 export LOCKLocation=/etc/inexistence/01.Log/Lock
@@ -285,9 +284,6 @@ OSVERSION=` cat /etc/redhat-release|sed -r 's/.* ([0-9]+)\..*/\1/' `
 [[ $DISTROL != centos ]] && [[ $OSVERSION != 7 ]] && SysSupport=3 && echo -e "\n${red}${bold}Navie! Your system version is ${DISTRO} ${OSVERSION} , Shell script only supports CentOS 7. ${normal}\n" 
 [[ $DISTROL == centos ]] && [[ $OSVERSION == 7 ]] && SysSupport=1
 [[ $DeBUG == 1 ]] && echo "${bold}DISTRO=$DISTRO, CODENAME=$CODENAME, osversion=$osversion, OSVERSION=${OSVERSION}, SysSupport=$SysSupport${normal}"
-
-# rTorrent 是否只能安装 feature-bind branch 的 0.9.6 或者 0.9.7 及以上
-[[ $CODENAME =~ (stretch|bionic) ]] && rtorrent_dev=1
 
 # 检查本脚本是否支持当前系统
 _oscheck
@@ -601,9 +597,9 @@ while [[ $aptsources = "" ]]; do
   # echo -ne "${bold}${yellow}Would you like to change sources list?${normal} [${cyan}Y${normal}]es or [N]o: " ; read -e responce
 
     case $responce in
-        [yY] | [yY][Ee][Ss] | "" ) aptsources=Yes ;;
-        [nN] | [nN][Oo]          ) aptsources=No ;;
-        *                        ) aptsources=Yes ;;
+        [yY] | "" ) aptsources=Yes ;;
+        [nN]      ) aptsources=No ;;
+        *         ) aptsources=Yes ;;
     esac
 
 done
@@ -662,9 +658,9 @@ if [[ $USESWAP = "" ]] && [[ $tram -le 1926 ]]; then
   # echo -ne "${bold}${yellow}Would you like to use swap when compiling?${normal} [${cyan}Y${normal}]es or [N]o: " ; read -e responce
 
     case $responce in
-        [yY] | [yY][Ee][Ss] | "") USESWAP=Yes ;;
-        [nN] | [nN][Oo]         ) USESWAP=No  ;;
-        *                       ) USESWAP=Yes ;;
+        [yY] | "") USESWAP=Yes ;;
+        [nN]     ) USESWAP=No  ;;
+        *        ) USESWAP=Yes ;;
     esac
 
     if [[ $USESWAP == Yes ]]; then
@@ -983,128 +979,52 @@ lt_version=$lt_version" ; }
 echo ; }
 
 # --------------------- 询问需要安装的 rTorrent 版本 --------------------- #
-
 function _askrt() {
-lang_ipv6_1="with IPv6 support"
-lang_ipv6_2="with UNOFFICAL IPv6 support"
-lang_3="released on Sep 04, 2015"
-lang_4="feature-bind branch on Jan 30, 2018"
-branch=branch
-
-
-
-while [[ $rt_version = "" ]]; do
-
-    [[ ! $rtorrent_dev == 1 ]] &&
-    echo -e "${green}01)${normal} rTorrent ${cyan}0.9.2${normal}" &&
-    echo -e "${green}02)${normal} rTorrent ${cyan}0.9.3${normal}" &&
-    echo -e "${green}03)${normal} rTorrent ${cyan}0.9.4${normal}" &&
-    echo -e "${green}04)${normal} rTorrent ${cyan}0.9.6${normal} ($lang_3)" &&
-    echo -e "${green}11)${normal} rTorrent ${cyan}0.9.2${normal} ($lang_ipv6_1)" &&
-    echo -e "${green}12)${normal} rTorrent ${cyan}0.9.3${normal} ($lang_ipv6_1)" &&
-    echo -e "${green}13)${normal} rTorrent ${cyan}0.9.4${normal} ($lang_ipv6_1)"
-    echo -e "${green}14)${normal} rTorrent ${cyan}0.9.6${normal} ($lang_4)"
-    echo -e "${green}15)${normal} rTorrent ${cyan}0.9.7${normal} ($lang_ipv6_1)"
-    echo -e   "${red}99)${normal} $lang_do_not_install rTorrent"
-
+  branch=branch
+  while [[ $rt_version = "" ]]; do
+    echo -e "${green}01)${normal} rTorrent ${cyan}0.9.7${normal}/libTorrent ${cyan}0.13.7${normal} with IPv6 support"
+    echo -e   "${red}99)${normal} $lang_do_not_install rTorrent" 
+    
     [[ $rt_installed == Yes ]] &&
-    echo -e "${bailanse}${bold} ATTENTION ${normal} ${blue}${bold}$lang_yizhuang ${underline}rTorrent ${rtorrent_ver}${normal}"
-#   [[ $rt_installed == Yes ]] && echo -e "${bold}If you want to downgrade or upgrade rTorrent, use ${blue}rtupdate${normal}"
-
-    if [[ $rtorrent_dev == 1 ]]; then
-
-        echo "${bold}${red}$lang_note_that${normal} ${bold}${green}Debian 9${jiacu} and ${green}Ubuntu 18.04 ${jiacu}is only supported by ${green}rTorrent 0.9.6 and later${normal}"
-        read -ep "${bold}${yellow}$which_version_do_you_want${normal} (Default ${cyan}99${normal}): " version
-      # echo -ne "${bold}${yellow}$which_version_do_you_want${normal} (Default ${cyan}99${normal}): " ; read -e version
-
-        case $version in
-            14) rt_version='0.9.6 IPv6 supported' ;;
-            15) rt_version=0.9.7 ;;
-            99) rt_version=No ;;
-            "" | *) rt_version=No ;;
-        esac
-
-    else
-
-        read -ep "${bold}${yellow}$which_version_do_you_want${normal} (Default ${cyan}99${normal}): " version
-      # echo -ne "${bold}${yellow}$which_version_do_you_want${normal} (Default ${cyan}99${normal}): " ; read -e version
-
-        case $version in
-            01 | 1) rt_version=0.9.2 ;;
-            02 | 2) rt_version=0.9.3 ;;
-            03 | 3) rt_version=0.9.4 ;;
-            04 | 4) rt_version=0.9.6 ;;
-            11) rt_version='0.9.2 IPv6 supported' ;;
-            12) rt_version='0.9.3 IPv6 supported' ;;
-            13) rt_version='0.9.4 IPv6 supported' ;;
-            14) rt_version='0.9.6 IPv6 supported' ;;
-            15) rt_version=0.9.7 ;;
-            99) rt_version=No ;;
-            "" | *) rt_version=No ;;
-        esac
-
-    fi
-
-done
-
-[[ $IPv6Opt == -i ]] && rt_version=`echo $rt_version IPv6 supported`
-[[ `echo $rt_version | grep IPv6` ]] && IPv6Opt=-i
-[[ $rt_version == 0.9.7 ]] && IPv6Opt=-i
-rt_versionIns=`echo $rt_version | grep -Eo [0-9].[0-9].[0-9]`
-
-if [[ $rt_version == No ]]; then
-
+    echo -e "${bailanse}${bold} ATTENTION ${normal} ${blue}${bold}$lang_yizhuang ${underline}rTorrent ${rtorrent_ver}${normal}" && version=99
+    [[ $rt_installed != Yes ]] && read -ep "${bold}${yellow}$which_version_do_you_want${normal} (Default ${cyan}99${normal}): " version
+    # echo -ne "${bold}${yellow}$which_version_do_you_want${normal} (Default ${cyan}99${normal}): " ; read -e version
+    case $version in
+        01 | 1) rt_version=0.9.7 && libTorrent_version=0.13.7 ;;
+        99) rt_version=No ;;
+        "" | *) rt_version=No ;;
+    esac
+  done
+  
+  if [[ $rt_version == No ]]; then
     echo "${baizise}rTorrent will ${baihongse}not${baizise} be installed${normal}"
     InsFlood='No rTorrent'
-
-else
-
-    if [[ `echo $rt_version | grep IPv6 | grep -Eo 0.9.[234]` ]]; then
-
-        echo "${bold}${baiqingse}rTorrent $rt_versionIns ($lang_ipv6_2)${normal} ${bold}$lang_will_be_installed${normal}"
-
-    elif [[ $rt_version == '0.9.6 IPv6 supported' ]]; then
-
-        echo "${bold}${baiqingse}rTorrent 0.9.6 (feature-bind $branch)${normal} ${bold}$lang_will_be_installed${normal}"
-
-    else
-
-        echo "${bold}${baiqingse}rTorrent ${rt_version}${normal} ${bold}$lang_will_be_installed${normal}"
-
-    fi
-
-#   echo "${bold}${baiqingse}ruTorrent, vsftpd, h5ai, autodl-irssi${normal} ${bold}will also be installed${normal}"
-
-fi
-
+  else
+    echo "${bold}${baiqingse}rTorrent ${rt_version}${normal} ${bold}$lang_will_be_installed${normal}"
+  fi
+  
 echo ; }
-
-
 # --------------------- 询问是否安装 flood --------------------- #
 
 function _askflood() {
-
-while [[ $InsFlood = "" ]]; do
-
+  while [[ $InsFlood = "" ]]; do
     read -ep "${bold}${yellow}$lang_would_you_like_to_install flood? ${normal} [Y]es or [${cyan}N${normal}]o: " responce
-  # echo -ne "${bold}${yellow}$lang_would_you_like_to_install flood? ${normal} [Y]es or [${cyan}N${normal}]o: " ; read -e responce
-
+    # echo -ne "${bold}${yellow}$lang_would_you_like_to_install flood? ${normal} [Y]es or [${cyan}N${normal}]o: " ; read -e responce
+  
     case $responce in
-        [yY] | [yY][Ee][Ss]  ) InsFlood=Yes ;;
-        [nN] | [nN][Oo] | "" ) InsFlood=No  ;;
-        *) InsFlood=No ;;
+        [yY]      ) InsFlood=Yes ;;
+        [nN] | "" ) InsFlood=No  ;;
+        *         ) InsFlood=No ;;
     esac
-
-done
-
-if [[ $InsFlood == Yes ]]; then
+  done
+  
+  if [[ $InsFlood == Yes ]]; then
     echo "${bold}${baiqingse}Flood${normal} ${bold}$lang_will_be_installed${normal}"
-else
+  else
     echo "${baizise}Flood will ${baihongse}not${baizise} be installed${normal}"
-fi
-
+  fi
+  
 echo ; }
-
 # --------------------- 询问需要安装的 Transmission 版本 --------------------- #
 # wget -qO- "https://github.com/transmission/transmission" | grep "data-name" | cut -d '"' -f2 | pr -3 -t ; echo
 
@@ -1186,9 +1106,9 @@ while [[ $InsFlex = "" ]]; do
   # echo -ne "${bold}${yellow}$lang_would_you_like_to_install Flexget?${normal} [Y]es or [${cyan}N${normal}]o: " ; read -e responce
 
     case $responce in
-        [yY] | [yY]  ) InsFlex=Yes ;;
-        [nN] | [nN] ) InsFlex=No ;;
-        *) InsFlex=Yes ;;
+        [yY]  ) InsFlex=Yes ;;
+        [nN]  ) InsFlex=No ;;
+        *     ) InsFlex=Yes ;;
     esac
 
 done
@@ -1210,9 +1130,9 @@ while [[ $InsRclone = "" ]]; do
   # echo -ne "${bold}${yellow}$lang_would_you_like_to_install rclone?${normal} [Y]es or [${cyan}N${normal}]o: " ; read -e responce
 
     case $responce in
-        [yY] | [yY]  ) InsRclone=Yes ;;
-        [nN] | [nN] ) InsRclone=No  ;;
-        *) InsRclone=No ;;
+        [yY]   ) InsRclone=Yes ;;
+        [nN]   ) InsRclone=No  ;;
+        *      ) InsRclone=No ;;
     esac
 
 done
@@ -1254,9 +1174,9 @@ else
             read -ep "${bold}${yellow}Would you like to use BBR? ${normal} [${cyan}Y${normal}]es or [N]o: " responce
 
             case $responce in
-                [yY] | [yY]    ) InsBBR=To\ be\ enabled ;;
-                [nN] | [nN]    ) InsBBR=No ;;
-                *              ) InsBBR=To\ be\ enabled ;;
+                [yY]  ) InsBBR=To\ be\ enabled ;;
+                [nN]  ) InsBBR=No ;;
+                *     ) InsBBR=To\ be\ enabled ;;
             esac
 
         else
@@ -1267,9 +1187,9 @@ else
             echo -ne "${bold}${yellow}$lang_would_you_like_to_install BBR? ${normal} [Y]es or [${cyan}N${normal}]o: " ; read -e responce
 
             case $responce in
-                [yY] | [yY]  ) InsBBR=Yes ;;
-                [nN] | [nN] | "" ) InsBBR=No ;;
-                *                    ) InsBBR=No ;;
+                [yY]      ) InsBBR=Yes ;;
+                [nN] | "" ) InsBBR=No ;;
+                *         ) InsBBR=No ;;
             esac
 
         fi
@@ -1299,9 +1219,9 @@ while [[ $UseTweaks = "" ]]; do
     echo -ne "${bold}${yellow}Would you like to do some system tweaks? ${normal} [${cyan}Y${normal}]es or [N]o: " ; read -e responce
 
     case $responce in
-        [yY] | [yY] | "" ) UseTweaks=Yes ;;
-        [nN] | [nN]          ) UseTweaks=No ;;
-        *                        ) UseTweaks=Yes ;;
+        [yY] | "" ) UseTweaks=Yes ;;
+        [nN]      ) UseTweaks=No ;;
+        *         ) UseTweaks=Yes ;;
     esac
 
 done
@@ -1315,7 +1235,6 @@ fi
 echo ; }
 
 # --------------------- 输出所用时间 --------------------- #
-
 function _time() {
 endtime=$(date +%s)
 timeused=$(( $endtime - $starttime ))
@@ -1331,10 +1250,6 @@ elif [[ $timeused -ge 3600 ]]; then
 else
     echo -e " ${baiqingse}${bold}The $timeWORK took about ${timeused} sec${normal}"
 fi ; }
-
-
-
-
 
 # --------------------- 询问是否继续 --------------------- #
 
@@ -1786,73 +1701,168 @@ EOF
   touch /tmp/$Installation_status_prefix.Confde.1.lock
 }
 
-# --------------------- 使用修改版 rtinst 安装 rTorrent, ruTorrent，h5ai, vsftpd --------------------- #
+# --------------------- 安装 rTorrent, ruTorrent，h5ai, vsftpd --------------------- #
 
 function _installrt() {
+  yum groupinstall "Development Tools"
+  rpm --import http://li.nux.ro/download/nux/RPM-GPG-KEY-nux.ro
+  rpm -Uvh http://li.nux.ro/download/nux/dextop/el7/x86_64/nux-dextop-release-0-1.el7.nux.noarch.rpm
 
-bash -c "$(wget -qO- https://raw.githubusercontent.com/Aniverse/rtinst/master/rtsetup)"
+  yum install cppunit-devel libtool zlib-devel gawk libsigc++20-devel openssl-devel ncurses-devel libcurl-devel xmlrpc-c-devel wget unzip screen nginx mediainfo ffmpeg httpd-tools 
 
-# [[ $DeBUG == 1 ]] && echo $IPv6Opt && echo $rt_versionIns
+  cd /etc/inexistence/00.Installation/MAKE
 
-sed -i "s/make\ \-s\ \-j\$(nproc)/make\ \-s\ \-j${MAXCPUS}/g" /usr/local/bin/rtupdate
+  wget -q https://rtorrent.net/downloads/libtorrent-$libTorrent_version.tar.gz
+  tar xzf libtorrent-$libTorrent_version.tar.gz
+  cd libtorrent-$libTorrent_version
+  ./autogen.sh
+  ./configure --disable-debug --prefix=/usr
+  make -j$MAXCPUS
+  make install
+  #echo "/usr/local/lib/" >> /etc/ld.so.conf
+  export PKG_CONFIG_PATH=/usr/lib/pkgconfig
+  ldconfig
+  cd
 
-if [[ $rt_installed == Yes ]]; then
-    rtupdate $IPv6Opt $rt_versionIns
-else
-    rtinst --ssh-default --ftp-default --rutorrent-master --force-yes --log $IPv6Opt -v $rt_versionIns -u $ANUSER -p $ANPASS -w $ANPASS
-fi
+  wget -q https://rtorrent.net/downloads/rtorrent-$rt_version.tar.gz
+  tar xzf rtorrent-$rt_version.tar.gz
+  cd rtorrent-$rt_version
+  ./autogen.sh
+  ./configure --with-xmlrpc-c --with-ncurses --enable-ipv6 --disable-debug
+  make -j$MAXCPUS
+  make install
+  cd
 
-# rtwebmin
-# openssl req -x509 -nodes -days 3650 -subj /CN=$serveripv4 -config /etc/ssl/ruweb.cnf -newkey rsa:2048 -keyout /etc/ssl/private/ruweb.key -out /etc/ssl/ruweb.crt
+  # openssl req -x509 -nodes -days 3650 -subj /CN=$serveripv4 -config /etc/ssl/ruweb.cnf -newkey rsa:2048 -keyout /etc/ssl/private/ruweb.key -out /etc/ssl/ruweb.crt
+  # 接着来安装PHP7.2，添加webtatic源
+  rpm -Uvh https://mirror.webtatic.com/yum/el7/webtatic-release.rpm
+  yum -y install php72w-fpm php72w-cli php72w-common php72w-gd php72w-mysqlnd php72w-odbc php72w-pdo php72w-pgsql php72w-xmlrpc php72w-xml php72w-mbstring php72w-opcache php72w-pecl-geoip
+  
+  rm -f /usr/share/GeoIP/GeoIP.dat
+  wget -qO /usr/share/GeoIP/GeoIP.dat https://github.com/NPCHK/GeoLiteCountry/raw/master/GeoIP.dat
 
-[[ -e /etc/php5/fpm/php.ini ]] && sed -i 's/^.*memory_limi.*/memory_limit = 512M/' /etc/php5/fpm/php.ini
-[[ -e /etc/php/7.0/fpm/php.ini ]] && sed -i 's/^.*memory_limit.*/memory_limit = 512M/' /etc/php/7.0/fpm/php.ini
-[[ -e /etc/php/7.2/fpm/php.ini ]] && sed -i 's/^.*memory_limit.*/memory_limit = 512M/' /etc/php/7.2/fpm/php.ini
+  PHP_inifile=/etc/php.ini
+  PHP_FPM=/etc/php-fpm.d/www.conf
+  sed -i 's/^.*memory_limit.*/memory_limit = 256M/' $PHP_inifile
+  sed -i 's/^.*upload_max_filesize.*/upload_max_filesize = 100M/' $PHP_inifile
+  sed -i 's/^.*max_file_uploads.*/max_file_uploads = 10000/' $PHP_inifile
+  sed -i 's/^.*post_max_size.*/post_max_size = 100M/' $PHP_inifile
+  echo "extension=geoip.so" >> $PHP_inifile
+  
+  # https://www.cnblogs.com/php48/p/8763550.html
+  sed -i "s/^.*user =.*/user = $ANUSER/" $PHP_FPM
+  sed -i "s/^.*group =.*/group = $ANUSER/" $PHP_FPM
+  sed -i "s/^.*listen =.*/listen = \/run\/php-fpm\/php-fpm.sock/" $PHP_FPM
+  #https://www.cnblogs.com/mikasama/p/8032389.html linux下统计文本行数的各种方法（一）
+  [[ `cat /etc/nginx/nginx.conf | wc -l` -ge 88 ]] && sed -i '38,57 d' /etc/nginx/nginx.conf
+  
+  rm -f /etc/nginx/conf.d/ruTorrent.conf
+  touch /etc/nginx/conf.d/ruTorrent.conf
+cat >/etc/nginx/conf.d/ruTorrent.conf<<EOF
+server {
+    listen 80;
+    server_name _;
+    
+    root /var/www/ruTorrent/;
+    index index.html;
+    
+    location / {
+        auth_basic "Restricted";
+        auth_basic_user_file /var/www/ruTorrent/.htpasswd;
+        try_files \$uri \$uri/ =404;
+    }
+    
+    location /RPC2 {
+        scgi_pass unix:/tmp/rpc.socket;
+        include scgi_params;
+        scgi_param SCRIPT_NAME /RPC2;
+    }
+    
+    location ~ \.php$ {
+        try_files \$uri =404;
+        fastcgi_pass unix:/run/php-fpm/php-fpm.sock;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        include fastcgi_params;
+    }
+}
+EOF
 
-mv /root/rtinst.log /etc/inexistence/01.Log/INSTALLATION/07.rtinst.script.log
-mv /home/${ANUSER}/rtinst.info /etc/inexistence/01.Log/INSTALLATION/07.rtinst.info.txt
-ln -s /home/${ANUSER} /var/www/h5ai/user.folder
+  htpasswd -b -c /var/www/ruTorrent/.htpasswd $ANUSER $ANPASS
 
-cp -f /etc/inexistence/00.Installation/template/systemd/rtorrent@.service /etc/systemd/system/rtorrent@.service
-cp -f /etc/inexistence/00.Installation/template/systemd/irssi@.service /etc/systemd/system/irssi@.service
+  systemctl restart php-fpm
+  chmod 777 /run/php-fpm/php-fpm.sock
+  
+ 
+  wget -qO ruTorrent.zip  https://github.com/Novik/ruTorrent/archive/master.zip
+  unzip ruTorrent.zip
+  mv ruTorrent-master /var/www/ruTorrent
+  ruTorrent_conf=/var/www/ruTorrent/conf/config.php
+  sed -i 's/^.*\$scgi_port = 5000;.*/\$scgi_port = 0;/' $ruTorrent_conf
+  sed -i 's/^.*\$scgi_host = "127.0.0.1";.*/	\$scgi_host = "unix:\/\/\/tmp\/rpc.socket";/' $ruTorrent_conf
 
-touch /etc/inexistence/01.Log/lock/rtorrent.lock
-cd ; echo -e "\n\n\n\n${baihongse}  RT-INSTALLATION-COMPLETED  ${normal}\n\n\n" ; }
+  sed "s/\"curl\"\t=> ''/\"curl\"\t=> '\`which curl\`'/g" $ruTorrent_conf |grep curl
+  #sed "s/\"gzip\"\t=> ''/\"gzip\"\t=> '\`which gzip\`'/g" $ruTorrent_conf |grep gzip
+  #sed "s/\"id\"\t=> ''/\"id\"\t=> '\`which id\`'/g" $ruTorrent_conf |grep id
+  #sed "s/\"stat\"\t=> ''/\"stat\"\t=> '\`which stat\`'/g" $ruTorrent_conf |grep stat
+  #sed "s/\"php\"   => ''/\"php\"\t=> '\`which php\`'/g" $ruTorrent_conf |grep php
+  #sed -i 's/$scgi_port = 5000/\/\/ $scgi_port = 5000/g' conf/config.php
+  
 
-# --------------------- Preparation for rtorrent_fast_resume.pl --------------------- #
-function _rt_fast_resume() {
-  cd ; wget http://search.cpan.org/CPAN/authors/id/I/IW/IWADE/Convert-Bencode_XS-0.06.tar.gz
-  wget https://rt.cpan.org/Ticket/Attachment/1433449/761974/patch-t_001_tests_t
-  tar xf Convert-Bencode_XS-0.06.tar.gz
-  cd Convert-Bencode_XS-0.06
-  patch -uNp0 -i ../patch-t_001_tests_t
-  perl Makefile.PL
-  make ; make install ; cd
-  rm -rf Convert-Bencode_XS-0.06 Convert-Bencode_XS-0.06.tar.gz patch-t_001_tests_t ; }
+  systemctl restart nginx
+  systemctl enable nginx
+  systemctl enable php-fpm
+
+  mv /root/rtinst.log /etc/inexistence/01.Log/INSTALLATION/07.rtinst.script.log
+  mv /home/${ANUSER}/rtinst.info /etc/inexistence/01.Log/INSTALLATION/07.rtinst.info.txt
+  ln -s /home/${ANUSER} /var/www/h5ai/user.folder
+
+  cp -f /etc/inexistence/00.Installation/template/systemd/rtorrent@.service /etc/systemd/system/rtorrent@.service
+  cp -f /etc/inexistence/00.Installation/template/systemd/irssi@.service /etc/systemd/system/irssi@.service
+
+  if [[ ` rtorrent -h 2>&1 | head -n1 | sed -ne 's/[^0-9]*\([0-9]*\.[0-9]*\.[0-9]*\)[^0-9]*/\1/p' ` == $rt_version ]]; then
+    touch /tmp/$Installation_status_prefix.installrt.1.lock
+  else
+    touch /tmp/$Installation_status_prefix.installrt.2.lock
+  fi
+}
+
 # --------------------- 安装 Node.js 与 flood --------------------- #
 
 function _installflood() {
+    yum install -y nodejs
+    npm install -g node-gyp
 
-# https://github.com/nodesource/distributions/blob/master/README.md
-# curl -sL https://deb.nodesource.com/setup_11.x | bash -
-curl -sL https://deb.nodesource.com/setup_10.x | bash -
-apt-get install -y nodejs build-essential python-dev
-npm install -g node-gyp
-git clone --depth=1 https://github.com/jfurrow/flood.git /srv/flood
-cd /srv/flood
-cp config.template.js config.js
-npm install
-sed -i "s/127.0.0.1/0.0.0.0/" /srv/flood/config.js
+    # git clone --depth=1 https://github.com/jfurrow/flood.git /srv/flood
+    wget -qO flood.tar.gz https://github.com/jfurrow/flood/archive/v1.0.0.tar.gz
+    tar zxf flood.tar.gz
+    cd flood-1.0.0
+    cp config.template.js config.js
+    npm install
+    sed -i "s/127.0.0.1/0.0.0.0/" config.js
+    npm run build 2>&1
 
-npm run build 2>&1 | tee /tmp/flood.log
-rm -rf /etc/inexistence/01.Log/lock/flood.fail.lock
-# [[ `grep "npm ERR!" /tmp/flood.log` ]] && touch /etc/inexistence/01.Log/lock/flood.fail.lock
+    rm -f /etc/systemd/system/flood.service
+    touch /etc/systemd/system/flood.service
+cat >/etc/systemd/system/flood.service<<EOF
+[Unit]
+Description=Flood rTorrent Web UI
+After=network.target
 
-cp -f /etc/inexistence/00.Installation/template/systemd/flood.service /etc/systemd/system/flood.service
-systemctl start flood
-systemctl enable flood 
+[Service]
+User=root
+WorkingDirectory=/srv/flood
+ExecStart=/usr/bin/npm start
 
-echo -e "${baihongse}  FLOOD-INSTALLATION-COMPLETED  ${normal}" ; }
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl start flood
+    systemctl enable flood 
+    echo -e "${baihongse}  FLOOD-INSTALLATION-COMPLETED  ${normal}"
+}
 
 # --------------------- 安装 Transmission --------------------- #
 
@@ -1894,6 +1904,7 @@ else
         cd transmission-$tr_version
     fi
 
+    ./autogen.sh >> $OutputLOG 2>&1
     ./configure --enable-cli --prefix=/usr >> $OutputLOG 2>&1
     make -j$MAXCPUS >> $OutputLOG 2>&1
     make install >> $OutputLOG 2>&1
@@ -2350,14 +2361,9 @@ _time
 
     if [[ ! $INSFAILED == "" ]]; then
 echo -e "\n ${bold}Unfortunately something went wrong during installation.
- You can check logs by typing these commands:
- ${yellow}cat /etc/inexistence/01.Log/installed.log"
-[[ ! $QBFAILED == "" ]] && echo -e " cat /etc/inexistence/01.Log/INSTALLATION/05.qb1.log" #&& echo "QBLTCFail=$QBLTCFail   QBCFail=$QBCFail"
-[[ ! $DEFAILED == "" ]] && echo -e " cat /etc/inexistence/01.Log/INSTALLATION/03.de1.log" #&& echo "DELTCFail=$DELTCFail"
-[[ ! $TRFAILED == "" ]] && echo -e " cat /etc/inexistence/01.Log/INSTALLATION/08.tr1.log"
-[[ ! $RTFAILED == "" ]] && echo -e " cat /etc/inexistence/01.Log/INSTALLATION/07.rt.log\n cat /etc/inexistence/01.Log/INSTALLATION/07.rtinst.script.log"
-[[ ! $FDFAILED == "" ]] && echo -e " cat /etc/inexistence/01.Log/INSTALLATION/07.flood.log"
-[[ ! $FXFAILED == "" ]] && echo -e " cat /etc/inexistence/01.Log/INSTALLATION/10.flexget.log"
+ You can check logs by typing this command:
+ ${yellow}cat ${OutputLOG}"
+
 echo -ne "${normal}"
     fi
 
@@ -2376,8 +2382,7 @@ _askqbt
 _askdeluge
 if [[ ! $de_version == No ]] || [[ ! $qb_version == No ]]; then _lt_ver_ask ; fi
 _askrt
-[[ ! $rt_version == No ]] && 
-_askflood
+[[ ! $rt_version == No ]] && _askflood
 _asktr
 _askflex
 _askrclone
@@ -2440,8 +2445,14 @@ fi
 if  [[ $rt_version == No ]]; then
     echo -e  "rTorrent installation ... ${yellow}${bold}Skip${normal}"
 else
-    echo -ne "Installing rTorrent ... \n\n" ; _installrt
-    [[ $InsFlood == Yes ]] && { echo -ne "Installing Flood ... \n\n\n" ; _installflood; }
+    echo -ne "Installing rTorrent ... "
+    _installrt & spinner $!
+    _check_status installrt
+    [[ $InsFlood == Yes ]] && { 
+        echo -ne "Installing Flood ... "
+        _installflood & spinner $!
+        _check_status installflood
+    }
 fi
 
 
