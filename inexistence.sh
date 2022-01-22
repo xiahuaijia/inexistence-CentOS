@@ -12,7 +12,7 @@
 DISABLE=0
 DeBUG=0
 INEXISTENCEVER=1.0.0
-INEXISTENCEDATE=2019.03.20
+INEXISTENCEDATE=2021.01.23
 # --------------------------------------------------------------------------------
 
 # 获取参数
@@ -331,9 +331,9 @@ wangka=`  ip route get 8.8.8.8 | awk '{print $5}'  `
   kern=$( uname -r )
 
 # Virt-what
-  wget -qO /usr/local/bin/virt-what https://github.com/Aniverse/inexistence/raw/master/03.Files/app/virt-what
+  wget -qO /usr/local/bin/virt-what https://github.com/xiahuaijia/inexistence-CentOS/raw/master/01.Files/app/virt-what
   mkdir -p /usr/lib/virt-what
-  wget -qO /usr/lib/virt-what/virt-what-cpuid-helper https://github.com/Aniverse/inexistence/raw/master/03.Files/app/virt-what-cpuid-helper
+  wget -qO /usr/lib/virt-what/virt-what-cpuid-helper https://github.com/xiahuaijia/inexistence-CentOS/raw/master/01.Files/app/virt-what-cpuid-helper
   chmod +x /usr/local/bin/virt-what /usr/lib/virt-what/virt-what-cpuid-helper
   virtua="$(virt-what)" 2>/dev/null
 
@@ -1312,7 +1312,7 @@ function _setuser() {
 
   echo -ne "Copy file ... "
   [[ -d /etc/inexistence ]] && rm -rf /etc/inexistence
-  git clone --depth=1 https://github.com/Aniverse/inexistence /etc/inexistence >> $OutputLOG 2>&1
+  git clone --depth=1 https://github.com/xiahuaijia/inexistence-CentOS /etc/inexistence >> $OutputLOG 2>&1
   mkdir -p $SCLocation $LOCKLocation
   mkdir -p /etc/inexistence/01.Log/INSTALLATION/packages /etc/inexistence/00.Installation/MAKE
   chmod -R 777 /etc/inexistence
@@ -1567,8 +1567,8 @@ function _setqbt() {
 function _installde() {
     if [[ $de_test == yes ]]; then
 
-        [[ $de_version == yes ]] && bash <(wget -qO- https://github.com/Aniverse/inexistence/raw/master/00.Installation/install/install_deluge) -v $de_version
-        [[ $de_branch  == yes ]] && bash <(wget -qO- https://github.com/Aniverse/inexistence/raw/master/00.Installation/install/install_deluge) -b $de_version &&
+        [[ $de_version == yes ]] && bash <(wget -qO- https://github.com/xiahuaijia/inexistence-CentOS/raw/master/00.Installation/install/install_deluge) -v $de_version
+        [[ $de_branch  == yes ]] && bash <(wget -qO- https://github.com/xiahuaijia/inexistence-CentOS/raw/master/00.Installation/install/install_deluge) -b $de_version &&
         wget -q https://github.com/Aniverse/filesss/raw/master/TorrentGrid.js -O /usr/lib/python2.7/dist-packages/deluge-1.3.15.dev0-py2.7.egg/deluge/ui/web/js/deluge-all/TorrentGrid.js
 
     else
