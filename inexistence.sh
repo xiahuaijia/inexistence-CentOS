@@ -1874,6 +1874,14 @@ if [[ "${tr_version}" == "Install from repo" ]]; then
 else
 
     yum install -y opensum gcc gcc-c++ m4 make automake libtool gettext openssl-devel libcurl-devel intltool libevent-devel >> $OutputLOG 2>&1
+    #yum install -y automake libtool libcurl-devel libevent-devel zlib-devel openssl11 openssl11-devel intltool
+    #export OPENSSL_CFLAGS=$(pkg-config --cflags openssl11)
+    #export OPENSSL_LIBS=$(pkg-config --libs openssl11)
+    #scl enable devtoolset-9 "./autogen.sh --prefix=/usr"
+    #scl enable devtoolset-9 "make -j"
+    #make install
+    # /usr/local/share/transmission
+
 
     cd /etc/inexistence/00.Installation/MAKE
     #wget -O release-2.1.8-stable.tar.gz https://github.com/libevent/libevent/archive/release-2.1.8-stable.tar.gz
